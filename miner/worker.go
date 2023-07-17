@@ -26,6 +26,7 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set/v2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -1202,9 +1203,13 @@ func (w *worker) generateWork(genParams *generateParams) (*types.Block, *big.Int
 		if errors.Is(err, errBlockInterruptedByTimeout) {
 			log.Warn("Block building is interrupted", "allowance", common.PrettyDuration(w.newpayloadTimeout))
 		}
+		if err != nil {
+			log.Error("abcd fill tx error", err, len(work.txs))
+		}
 	}
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts, genParams.withdrawals)
 	if err != nil {
+		log.Error("abcd finalize build error", err, len(work.txs))
 		return nil, nil, nil, err
 	}
 	return block, totalFees(block, work.receipts), work, nil
