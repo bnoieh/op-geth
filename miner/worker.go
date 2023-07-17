@@ -1148,6 +1148,7 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	// Split the pending transactions into locals and remotes
 	// Fill the block with all available pending transactions.
 	pending := w.eth.TxPool().Pending(true)
+	log.Info("abcd pending count", len(pending))
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
 		if txs := remoteTxs[account]; len(txs) > 0 {
@@ -1156,12 +1157,14 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 		}
 	}
 	if len(localTxs) > 0 {
+		log.Info("abcd localTxs count", len(localTxs))
 		txs := types.NewTransactionsByPriceAndNonce(env.signer, localTxs, env.header.BaseFee)
 		if err := w.commitTransactions(env, txs, interrupt); err != nil {
 			return err
 		}
 	}
 	if len(remoteTxs) > 0 {
+		log.Info("abcd remoteTxs count", len(remoteTxs))
 		txs := types.NewTransactionsByPriceAndNonce(env.signer, remoteTxs, env.header.BaseFee)
 		if err := w.commitTransactions(env, txs, interrupt); err != nil {
 			return err
