@@ -598,23 +598,30 @@ func (pool *TxPool) ContentFrom(addr common.Address) (types.Transactions, types.
 // transactions and only return those whose **effective** tip is large enough in
 // the next pending execution environment.
 func (pool *TxPool) Pending(enforceTips bool) map[common.Address]types.Transactions {
+	log.Info("abcd before lock")
 	pool.mu.Lock()
+	log.Info("abcd after lock")
 	defer pool.mu.Unlock()
 
 	pending := make(map[common.Address]types.Transactions)
 	for addr, list := range pool.pending {
 		txs := list.Flatten()
+		log.Info("abcd pool pending before", len(txs))
 
 		// If the miner requests tip enforcement, cap the lists now
 		if enforceTips && !pool.locals.contains(addr) {
 			for i, tx := range txs {
 				if tx.EffectiveGasTipIntCmp(pool.gasPrice, pool.priced.urgent.baseFee) < 0 {
 					txs = txs[:i]
+					log.Info("abcd gas price issue")
 					break
 				}
 			}
 		}
+		abcd := len(txs)
+		log.Info("abcd pool pending", abcd)
 		if len(txs) > 0 {
+			log.Info("abcd pool pending after", len(txs))
 			pending[addr] = txs
 		}
 	}

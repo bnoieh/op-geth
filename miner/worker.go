@@ -1148,10 +1148,12 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	// Split the pending transactions into locals and remotes
 	// Fill the block with all available pending transactions.
 	pending := w.eth.TxPool().Pending(true)
-	log.Info("abcd pending count", len(pending))
+	abcd := len(pending)
+	log.Info("abcd pending count", abcd)
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
 		if txs := remoteTxs[account]; len(txs) > 0 {
+			log.Info("abcd delete local from remote")
 			delete(remoteTxs, account)
 			localTxs[account] = txs
 		}
