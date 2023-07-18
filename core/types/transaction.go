@@ -623,6 +623,7 @@ type TransactionsByPriceAndNonce struct {
 // if after providing it to the constructor.
 func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transactions, baseFee *big.Int) *TransactionsByPriceAndNonce {
 	// Initialize a price and received time based heap with the head transactions
+	log.Info("abcd gas price issue before", "number", len(txs))
 	heads := make(TxByPriceAndTime, 0, len(txs))
 	for from, accTxs := range txs {
 		acc, _ := Sender(signer, accTxs[0])
@@ -636,7 +637,7 @@ func NewTransactionsByPriceAndNonce(signer Signer, txs map[common.Address]Transa
 		txs[from] = accTxs[1:]
 	}
 	heap.Init(&heads)
-
+	log.Info("abcd gas price issue after", "number", len(txs))
 	// Assemble and return the transaction set
 	return &TransactionsByPriceAndNonce{
 		txs:     txs,
