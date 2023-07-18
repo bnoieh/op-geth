@@ -604,9 +604,9 @@ func (pool *TxPool) Pending(enforceTips bool) map[common.Address]types.Transacti
 	defer pool.mu.Unlock()
 
 	pending := make(map[common.Address]types.Transactions)
+	log.Info("abcd pool pending before", "number", len(pool.pending))
 	for addr, list := range pool.pending {
 		txs := list.Flatten()
-		log.Info("abcd pool pending", "number", len(txs))
 
 		// If the miner requests tip enforcement, cap the lists now
 		if enforceTips && !pool.locals.contains(addr) {
@@ -617,12 +617,11 @@ func (pool *TxPool) Pending(enforceTips bool) map[common.Address]types.Transacti
 				}
 			}
 		}
-		abcd := len(txs)
-		log.Info("abcd pool pending", "number", abcd)
 		if len(txs) > 0 {
 			pending[addr] = txs
 		}
 	}
+	log.Info("abcd pool pending after", "number", len(pool.pending))
 	return pending
 }
 
