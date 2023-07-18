@@ -1147,7 +1147,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	// Split the pending transactions into locals and remotes
 	// Fill the block with all available pending transactions.
-	pending := w.eth.TxPool().Pending(true)
+	pending := w.eth.TxPool().Pending(false)
 	abcd := len(pending)
 	log.Info("abcd pending count", "number", abcd)
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
@@ -1209,12 +1209,12 @@ func (w *worker) generateWork(genParams *generateParams) (*types.Block, *big.Int
 			log.Warn("Block building is interrupted", "allowance", common.PrettyDuration(w.newpayloadTimeout))
 		}
 		if err != nil {
-			log.Error("abcd fill tx error", err, len(work.txs))
+			log.Error("abcd fill tx error", "error", err, "number", len(work.txs))
 		}
 	}
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts, genParams.withdrawals)
 	if err != nil {
-		log.Error("abcd finalize build error", err, len(work.txs))
+		log.Error("abcd finalize build error", "error", err, "number", len(work.txs))
 		return nil, nil, nil, err
 	}
 	return block, totalFees(block, work.receipts), work, nil
