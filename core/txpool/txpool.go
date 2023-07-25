@@ -598,13 +598,11 @@ func (pool *TxPool) ContentFrom(addr common.Address) (types.Transactions, types.
 // transactions and only return those whose **effective** tip is large enough in
 // the next pending execution environment.
 func (pool *TxPool) Pending(enforceTips bool) map[common.Address]types.Transactions {
-	log.Info("abcd before lock")
 	pool.mu.Lock()
-	log.Info("abcd after lock")
 	defer pool.mu.Unlock()
 
 	pending := make(map[common.Address]types.Transactions)
-	log.Info("abcd pool pending before", "number", len(pool.pending))
+	count := uint64(0)
 	for addr, list := range pool.pending {
 		txs := list.Flatten()
 
@@ -619,9 +617,12 @@ func (pool *TxPool) Pending(enforceTips bool) map[common.Address]types.Transacti
 		}
 		if len(txs) > 0 {
 			pending[addr] = txs
+			count = count + uint64(len(txs))
+			if count > pool.config.PriceLimit {
+				break
+			}
 		}
 	}
-	log.Info("abcd pool pending after", "number", len(pool.pending))
 	return pending
 }
 
