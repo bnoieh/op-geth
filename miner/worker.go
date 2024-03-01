@@ -1058,12 +1058,12 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	// Split the pending transactions into locals and remotes.
 	start1 := time.Now()
 	localTxs, remoteTxs := make(map[common.Address][]*txpool.LazyTransaction), pending
-	for _, account := range w.eth.TxPool().Locals() {
-		if txs := remoteTxs[account]; len(txs) > 0 {
-			delete(remoteTxs, account)
-			localTxs[account] = txs
-		}
-	}
+	// for _, account := range w.eth.TxPool().Locals() {
+	// 	if txs := remoteTxs[account]; len(txs) > 0 {
+	// 		delete(remoteTxs, account)
+	// 		localTxs[account] = txs
+	// 	}
+	// }
 	log.Info("got locals from pool", "parent hash", env.header.ParentHash, "duration", common.PrettyDuration(time.Since(start1)))
 
 
