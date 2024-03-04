@@ -948,8 +948,8 @@ func (w *worker) commitTransactions(env *environment, txs *types.TransactionsByP
 	//prefetch txs from all pending txs
 	txsPrefetch := txs.Copy()
 	tx := txsPrefetch.Peek()
-	txCurr := &tx
-	w.prefetcher.PrefetchMining(txsPrefetch, env.header, env.gasPool.Gas(), env.state.CopyDoPrefetch(), *w.chain.GetVMConfig(), stopPrefetchCh, txCurr)
+	// txCurr := &tx
+	// w.prefetcher.PrefetchMining(txsPrefetch, env.header, env.gasPool.Gas(), env.state.CopyDoPrefetch(), *w.chain.GetVMConfig(), stopPrefetchCh, txCurr)
 
 	for {
 		// Check interruption signal and abort building if it's fired.
