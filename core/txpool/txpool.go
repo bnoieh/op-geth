@@ -49,6 +49,9 @@ var (
 	// This is mostly a sanity metric to ensure there's no bug that would make
 	// some subpool hog all the reservations due to mis-accounting.
 	reservationsGaugeName = "txpool/reservations"
+
+	StateNonceTimer = metrics.NewRegisteredTimer("txpool/state/nonce", nil)
+	StateBalanceTimer = metrics.NewRegisteredTimer("txpool/state/balance", nil)
 )
 
 // BlockChain defines the minimal set of methods needed to back a tx pool with

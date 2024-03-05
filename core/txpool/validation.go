@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -240,7 +241,9 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		log.Error("Transaction sender recovery failed", "err", err)
 		return err
 	}
+	start := time.Now()
 	next := opts.State.GetNonce(from)
+	StateNonceTimer.Update(time.Since(start))
 	if next > tx.Nonce() {
 		Meter(NonceTooLow).Mark(1)
 		return fmt.Errorf("%w: next nonce %v, tx nonce %v", core.ErrNonceTooLow, next, tx.Nonce())
@@ -253,10 +256,13 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 	}
 	// Ensure the transactor has enough funds to cover the transaction costs
+	start = time.Now()
 	var (
 		balance = opts.State.GetBalance(from)
 		cost    = tx.Cost()
 	)
+	StateBalanceTimer.Update(time.Since(start))
+
 	if opts.L1CostFn != nil {
 		if l1Cost := opts.L1CostFn(tx.RollupDataGas()); l1Cost != nil { // add rollup cost
 			cost = cost.Add(cost, l1Cost)
