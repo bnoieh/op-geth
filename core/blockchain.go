@@ -1084,6 +1084,18 @@ func (bc *BlockChain) procFutureBlocks() {
 	}
 }
 
+// CacheBlock cache block in memory
+func (bc *BlockChain) CacheBlock(hash common.Hash, block *types.Block) {
+	bc.hc.numberCache.Add(hash, block.NumberU64())
+	bc.hc.headerCache.Add(hash, block.Header())
+	bc.blockCache.Add(hash, block)
+}
+
+// CacheReceipts cache receipts in memory
+func (bc *BlockChain) CacheReceipts(hash common.Hash, receipts types.Receipts) {
+	bc.receiptsCache.Add(hash, receipts)
+}
+
 // CacheMiningReceipts cache receipts in memory
 func (bc *BlockChain) CacheMiningReceipts(hash common.Hash, receipts types.Receipts) {
 	bc.miningReceiptsCache.Add(hash, receipts)
@@ -1904,6 +1916,16 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		if err != nil {
 			return it.index, err
 		}
+
+		// pre-cache the block and receipts, so that it can be retrieved quickly by rcp
+		bc.CacheBlock(block.Hash(), block)
+		err = types.Receipts(receipts).DeriveFields(bc.chainConfig, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), nil, block.Transactions())
+		if err != nil {
+			log.Warn("Failed to derive receipt fields", "block", block.Hash(), "err", err)
+		} else {
+			bc.CacheReceipts(block.Hash(), receipts)
+		}
+
 		// Update the metrics touched during block commit
 		accountCommitTimer.Update(statedb.AccountCommits)   // Account commits are complete, we can mark them
 		storageCommitTimer.Update(statedb.StorageCommits)   // Storage commits are complete, we can mark them
