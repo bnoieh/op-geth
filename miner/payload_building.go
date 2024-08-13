@@ -215,7 +215,7 @@ func (payload *Payload) resolve(onlyFull bool) *engine.ExecutionPayloadEnvelope 
 		start := time.Now()
 		payload.cond.Wait()
 		waitPayloadTimer.UpdateSince(start)
-		log.Debug("waitPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "id", payload.id)
+		log.Info("waitPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "id", payload.id)
 	}
 
 	// Now we can signal the building routine to stop.

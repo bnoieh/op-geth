@@ -1141,6 +1141,18 @@ func (bc *BlockChain) procFutureBlocks() {
 	}
 }
 
+// CacheBlock cache block in memory
+func (bc *BlockChain) CacheBlock(hash common.Hash, block *types.Block) {
+	bc.hc.numberCache.Add(hash, block.NumberU64())
+	bc.hc.headerCache.Add(hash, block.Header())
+	bc.blockCache.Add(hash, block)
+}
+
+// CacheReceipts cache receipts in memory
+func (bc *BlockChain) CacheReceipts(hash common.Hash, receipts types.Receipts) {
+	bc.receiptsCache.Add(hash, receipts)
+}
+
 // CacheMiningReceipts cache receipts in memory
 func (bc *BlockChain) CacheMiningReceipts(hash common.Hash, receipts types.Receipts) {
 	bc.miningReceiptsCache.Add(hash, receipts)
@@ -2013,6 +2025,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, setHead)
 		blockGasUsedGauge.Update(int64(block.GasUsed()) / 1000000)
+
+		bc.CacheBlock(block.Hash(), block)
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count

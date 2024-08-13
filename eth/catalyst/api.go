@@ -40,9 +40,9 @@ import (
 
 var (
 	forkchoiceUpdateAttributesTimer = metrics.NewRegisteredTimer("api/engine/forkchoiceUpdate/attributes", nil)
-	forkchoiceUpdateHeadsTimer = metrics.NewRegisteredTimer("api/engine/forkchoiceUpdate/heads", nil)
-	getPayloadTimer = metrics.NewRegisteredTimer("api/engine/get/payload", nil)
-	newPayloadTimer = metrics.NewRegisteredTimer("api/engine/new/payload", nil)
+	forkchoiceUpdateHeadsTimer      = metrics.NewRegisteredTimer("api/engine/forkchoiceUpdate/heads", nil)
+	getPayloadTimer                 = metrics.NewRegisteredTimer("api/engine/get/payload", nil)
+	newPayloadTimer                 = metrics.NewRegisteredTimer("api/engine/new/payload", nil)
 )
 
 // Register adds the engine API to the full node.
@@ -236,6 +236,7 @@ func checkAttribute(active func(*big.Int, uint64) bool, exists bool, block *big.
 }
 
 func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payloadAttributes *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+	fcuHead := payloadAttributes == nil
 	start := time.Now()
 
 	api.forkchoiceLock.Lock()
@@ -255,6 +256,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	// need to either trigger a sync, or to reject this forkchoice update for a
 	// reason.
 	block := api.eth.BlockChain().GetBlockByHash(update.HeadBlockHash)
+	log.Info("forkchoiceUpdateTimer:GetBlockByHash", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash, "fcuHead", fcuHead)
 	if block == nil {
 		// If this block was previously invalidated, keep rejecting it here too
 		if res := api.checkInvalidAncestor(update.HeadBlockHash, update.HeadBlockHash); res != nil {
@@ -323,9 +325,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	}
 	if rawdb.ReadCanonicalHash(api.eth.ChainDb(), block.NumberU64()) != update.HeadBlockHash {
 		// Block is not canonical, set head.
+		start := time.Now()
 		if latestValid, err := api.eth.BlockChain().SetCanonical(block); err != nil {
 			return engine.ForkChoiceResponse{PayloadStatus: engine.PayloadStatusV1{Status: engine.INVALID, LatestValidHash: &latestValid}}, err
 		}
+		log.Info("forkchoiceUpdateTimer:UnsafeTag", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash, "fcuHead", fcuHead)
 	} else if api.eth.BlockChain().CurrentBlock().Hash() == update.HeadBlockHash {
 		// If the specified head matches with our local head, do nothing and keep
 		// generating the payload. It's a special corner case that a few slots are
@@ -341,6 +345,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	// If the beacon client also advertised a finalized block, mark the local
 	// chain final and completely in PoS mode.
 	if update.FinalizedBlockHash != (common.Hash{}) {
+		start := time.Now()
 		if merger := api.eth.Merger(); !merger.PoSFinalized() {
 			merger.FinalizePoS()
 		}
@@ -355,9 +360,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		// Set the finalized block
 		api.eth.BlockChain().SetFinalized(finalBlock.Header())
+		log.Info("forkchoiceUpdateTimer:FinalTag", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash, "final", update.FinalizedBlockHash, "fcuHead", fcuHead)
 	}
 	// Check if the safe block hash is in our canonical tree, if not somethings wrong
 	if update.SafeBlockHash != (common.Hash{}) {
+		start := time.Now()
 		safeBlock := api.eth.BlockChain().GetBlockByHash(update.SafeBlockHash)
 		if safeBlock == nil {
 			log.Warn("Safe block not available in database")
@@ -369,6 +376,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		// Set the safe block
 		api.eth.BlockChain().SetSafe(safeBlock.Header())
+		log.Info("forkchoiceUpdateTimer:SafeTag", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash, "safe", update.SafeBlockHash, "fcuHead", fcuHead)
 	}
 	// If payload generation was requested, create a new block to be potentially
 	// sealed by the beacon client. The payload will be requested later, and we
@@ -409,11 +417,11 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		api.localBlocks.put(id, payload)
 		forkchoiceUpdateAttributesTimer.UpdateSince(start)
-		log.Debug("forkchoiceUpdateAttributesTimer", "duration", common.PrettyDuration(time.Since(start)), "id", id)
+		log.Info("forkchoiceUpdateAttributesTimer", "duration", common.PrettyDuration(time.Since(start)), "id", id)
 		return valid(&id), nil
 	}
 	forkchoiceUpdateHeadsTimer.UpdateSince(start)
-	log.Debug("forkchoiceUpdateAttributesTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash)
+	log.Info("forkchoiceUpdateAttributesTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash)
 	return valid(nil), nil
 }
 
@@ -468,10 +476,10 @@ func (api *ConsensusAPI) GetPayloadV3(payloadID engine.PayloadID) (*engine.Execu
 
 func (api *ConsensusAPI) getPayload(payloadID engine.PayloadID, full bool) (*engine.ExecutionPayloadEnvelope, error) {
 	start := time.Now()
-	defer func () {
+	defer func() {
 		getPayloadTimer.UpdateSince(start)
-		log.Debug("getPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "id", payloadID)
-	} ()
+		log.Info("getPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "id", payloadID)
+	}()
 	log.Trace("Engine API request received", "method", "GetPayload", "id", payloadID)
 	data := api.localBlocks.get(payloadID, full)
 	if data == nil {
@@ -527,10 +535,10 @@ func (api *ConsensusAPI) NewPayloadV3(params engine.ExecutableData, versionedHas
 
 func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (engine.PayloadStatusV1, error) {
 	start := time.Now()
-	defer func () {
+	defer func() {
 		newPayloadTimer.UpdateSince(start)
-		log.Debug("newPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
-	} ()
+		log.Info("newPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
+	}()
 
 	// The locking here is, strictly, not required. Without these locks, this can happen:
 	//
@@ -612,6 +620,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
+	log.Info("Prepare newPayload", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)
 

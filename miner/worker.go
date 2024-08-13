@@ -867,6 +867,11 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	}
 	var coalescedLogs []*types.Log
 
+	resovlePoolTimer := time.Duration(0)
+	commitTxTimer := time.Duration(0)
+	defer func() {
+		log.Info("commitTxs step timer", "resolvePool", resovlePoolTimer.Milliseconds(), "commitTx", commitTxTimer.Milliseconds())
+	}()
 	for {
 		// Check interruption signal and abort building if it's fired.
 		if interrupt != nil {
@@ -899,7 +904,9 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			continue
 		}
 		// Transaction seems to fit, pull it up from the pool
+		start := time.Now()
 		tx := ltx.Resolve()
+		resovlePoolTimer += time.Since(start)
 		if tx == nil {
 			log.Trace("Ignoring evicted transaction", "hash", ltx.Hash)
 			txs.Pop()
@@ -921,7 +928,9 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		// Start executing the transaction
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 
+		start = time.Now()
 		logs, err := w.commitTransaction(env, tx)
+		commitTxTimer += time.Since(start)
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
@@ -1114,7 +1123,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	start := time.Now()
 	pending := w.eth.TxPool().Pending(true)
 	packFromTxpoolTimer.UpdateSince(start)
-	log.Debug("packFromTxpoolTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash(), "txs", len(pending))
+	log.Info("packFromTxpoolTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash(), "txs", len(pending))
 
 	// Split the pending transactions into locals and remotes.
 	localTxs, remoteTxs := make(map[common.Address][]*txpool.LazyTransaction), pending
