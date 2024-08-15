@@ -1519,7 +1519,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Crit("Failed to write block into disk", "err", err)
 		}
 		blockWriteExternalTimer.UpdateSince(start)
-		log.Debug("blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+		log.Info("blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 	}()
 
 	// Commit all cached state changes into underlying memory database.
@@ -1530,7 +1530,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		return err
 	}
 	stateCommitExternalTimer.UpdateSince(start)
-	log.Debug("stateCommitExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Info("stateCommitExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 
 	// If node is running in path mode, skip explicit gc operation
 	// which is unnecessary in this mode.
@@ -1541,7 +1541,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	start = time.Now()
 	defer func() {
 		triedbCommitExternalTimer.UpdateSince(start)
-		log.Debug("triedbCommitExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+		log.Info("triedbCommitExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 	}()
 	if bc.cacheConfig.TrieDirtyDisabled {
 		return bc.triedb.Commit(root, false)
@@ -1718,6 +1718,10 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 // is imported, but then new canon-head is added before the actual sidechain
 // completes, then the historic state could be pruned again
 func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error) {
+	begin := time.Now()
+	defer func () {
+		log.Info("InsertChainTimer", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
+	}()
 	// If the chain is terminating, don't even bother starting up.
 	if bc.insertStopped() {
 		return 0, nil
@@ -1725,6 +1729,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
 	SenderCacher.RecoverFromBlocks(types.MakeSigner(bc.chainConfig, chain[0].Number(), chain[0].Time()), chain)
+	log.Info("InsertChainTimer:RecoverFromBlocks", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 	var (
 		stats     = insertStats{startTime: mclock.Now()}
@@ -1743,6 +1748,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	}
 	abort, results := bc.engine.VerifyHeaders(bc, headers)
 	defer close(abort)
+	log.Info("InsertChainTimer:VerifyHeaders", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 	// Peek the error for the first block to decide the directing import logic
 	it := newInsertIterator(chain, results, bc.validator)
@@ -1901,6 +1907,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			lastCanon = block
 			continue
 		}
+
+		log.Info("InsertChainTimer:BeforeExec", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 		var (
 			receipts, receiptExist = bc.miningReceiptsCache.Get(block.Hash())

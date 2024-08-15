@@ -562,6 +562,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 		log.Warn("Invalid NewPayload params", "params", params, "error", err)
 		return api.invalid(err, nil), nil
 	}
+	log.Info("engine.ExecutableDataToBlock", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	// Stash away the last update to warn the user if the beacon client goes offline
 	api.lastNewPayloadLock.Lock()
 	api.lastNewPayloadUpdate = time.Now()
@@ -574,6 +575,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 		hash := block.Hash()
 		return engine.PayloadStatusV1{Status: engine.VALID, LatestValidHash: &hash}, nil
 	}
+	log.Info("newPayloadTimer:getBlockByHash", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	// If this block was rejected previously, keep rejecting it
 	if res := api.checkInvalidAncestor(block.Hash(), block.Hash()); res != nil {
 		return *res, nil
@@ -588,6 +590,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 	if parent == nil {
 		return api.delayPayloadImport(block)
 	}
+	log.Info("newPayloadTimer:getParentBlock", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	// We have an existing parent, do some sanity checks to avoid the beacon client
 	// triggering too early
 	var (

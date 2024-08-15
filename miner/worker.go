@@ -867,12 +867,20 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	}
 	var coalescedLogs []*types.Log
 
-	resovlePoolTimer := time.Duration(0)
+	start := time.Now()
+	peekTimer := time.Duration(0)
+	senderTimer := time.Duration(0)
 	commitTxTimer := time.Duration(0)
 	defer func() {
-		log.Info("commitTxs step timer", "resolvePool", resovlePoolTimer.Milliseconds(), "commitTx", commitTxTimer.Milliseconds())
+		log.Info("commitTxs step timer", "duration", time.Since(start).Milliseconds(), "hash", env.header.Hash(), "peek", peekTimer.Milliseconds(), "sender", senderTimer.Milliseconds(), "commitTx", commitTxTimer.Milliseconds())
 	}()
+
+	blockTxLimit := 12500
+	txCount := 0
 	for {
+		if txCount > blockTxLimit {
+			break
+		}
 		// Check interruption signal and abort building if it's fired.
 		if interrupt != nil {
 			if signal := interrupt.Load(); signal != commitInterruptNone {
@@ -885,7 +893,10 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			break
 		}
 		// Retrieve the next transaction and abort if all done.
+		start := time.Now()
 		ltx := txs.Peek()
+		peekTimer += time.Since(start)
+
 		if ltx == nil {
 			break
 		}
@@ -904,9 +915,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			continue
 		}
 		// Transaction seems to fit, pull it up from the pool
-		start := time.Now()
 		tx := ltx.Resolve()
-		resovlePoolTimer += time.Since(start)
 		if tx == nil {
 			log.Trace("Ignoring evicted transaction", "hash", ltx.Hash)
 			txs.Pop()
@@ -915,7 +924,9 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		}
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
+		start = time.Now()
 		from, _ := types.Sender(env.signer, tx)
+		senderTimer += time.Since(start)
 
 		// Check whether the tx is replay protected. If we're not in the EIP155 hf
 		// phase, start ignoring the sender until we do.
@@ -944,6 +955,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			env.tcount++
 			txs.Shift()
 			txSuccMeter.Mark(1)
+			txCount += 1
 
 		default:
 			// Transaction is regarded as invalid, drop all consecutive transactions from
@@ -1146,12 +1158,13 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	}
 	if len(remoteTxs) > 0 {
 		txs := newTransactionsByPriceAndNonce(env.signer, remoteTxs, env.header.BaseFee)
+		log.Info("newTransactionsByPriceAndNonce", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash())
 		if err := w.commitTransactions(env, txs, interrupt); err != nil {
 			return err
 		}
 	}
 	commitTxpoolTxsTimer.UpdateSince(start)
-	log.Debug("commitTxpoolTxsTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash())
+	log.Info("commitTxpoolTxsTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash())
 	return nil
 }
 
@@ -1159,8 +1172,25 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	// TODO delete after debug performance metrics
 	core.DebugInnerExecutionDuration = 0
+	core.DebugInnerTxToMsgDuration = 0
+	core.DebugInnerApplyMsgDuration = 0
+	core.DebugInnerFnaliseDuration = 0
+	core.DebugInnerLogsDuration = 0
+	core.DebugInnerBloomDuration = 0
+	core.DebugInnerPrecheckDuration = 0
+	core.DebugInnerPrepareDuration = 0
+	core.DebugInnerFeeDuration = 0
+
 	defer func() {
 		core.DebugInnerExecutionDuration = 0
+		core.DebugInnerTxToMsgDuration = 0
+		core.DebugInnerApplyMsgDuration = 0
+		core.DebugInnerFnaliseDuration = 0
+		core.DebugInnerLogsDuration = 0
+		core.DebugInnerBloomDuration = 0
+		core.DebugInnerPrecheckDuration = 0
+		core.DebugInnerPrepareDuration = 0
+		core.DebugInnerFeeDuration = 0
 	}()
 
 	work, err := w.prepareWork(genParams)
@@ -1217,6 +1247,8 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	if intr := genParams.interrupt; intr != nil && genParams.isUpdate && intr.Load() != commitInterruptNone {
 		return &newPayloadResult{err: errInterruptedUpdate}
 	}
+
+	log.Info("inner exec timer", "exec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "bloom", core.DebugInnerBloomDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "logs", core.DebugInnerLogsDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration)
 
 	start = time.Now()
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)

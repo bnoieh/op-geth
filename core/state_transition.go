@@ -27,11 +27,20 @@ import (
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 // TODO delete after debug performance metrics
 var DebugInnerExecutionDuration time.Duration
+var DebugInnerTxToMsgDuration time.Duration
+var DebugInnerApplyMsgDuration time.Duration
+var DebugInnerFnaliseDuration time.Duration
+var DebugInnerLogsDuration time.Duration
+var DebugInnerBloomDuration time.Duration
+var DebugInnerPrecheckDuration time.Duration
+var DebugInnerPrepareDuration time.Duration
+var DebugInnerFeeDuration time.Duration
 
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
@@ -435,11 +444,14 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
+	start := time.Now()
 	if err := st.preCheck(); err != nil {
 		return nil, err
 	}
+	DebugInnerPrecheckDuration += time.Since(start)
 
 	if tracer := st.evm.Config.Tracer; tracer != nil {
+		log.Error("nolan")
 		tracer.CaptureTxStart(st.initialGas)
 		defer func() {
 			tracer.CaptureTxEnd(st.gasRemaining)
@@ -464,6 +476,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	st.gasRemaining -= gas
 
 	// Check clause 6
+	start = time.Now()
 	if msg.Value.Sign() > 0 && !st.evm.Context.CanTransfer(st.state, msg.From, msg.Value) {
 		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From.Hex())
 	}
@@ -477,12 +490,13 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	// - prepare accessList(post-berlin)
 	// - reset transient storage(eip 1153)
 	st.state.Prepare(rules, msg.From, st.evm.Context.Coinbase, msg.To, vm.ActivePrecompiles(rules), msg.AccessList)
+	DebugInnerPrepareDuration += time.Since(start)
 
 	var (
 		ret   []byte
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
 	)
-	start := time.Now()
+	start = time.Now()
 	if contractCreation {
 		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, msg.Value)
 	} else {
@@ -510,6 +524,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 	// Note for deposit tx there is no ETH refunded for unused gas, but that's taken care of by the fact that gasPrice
 	// is always 0 for deposit tx. So calling refundGas will ensure the gasUsed accounting is correct without actually
 	// changing the sender's balance
+	start = time.Now()
 	var gasRefund uint64
 	if !rules.IsLondon {
 		// Before EIP-3529: refunds were capped to gasUsed / 2
@@ -550,6 +565,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 			st.state.AddBalance(params.OptimismL1FeeRecipient, cost)
 		}
 	}
+	DebugInnerFeeDuration += time.Since(start)
 
 	return &ExecutionResult{
 		UsedGas:     st.gasUsed(),
