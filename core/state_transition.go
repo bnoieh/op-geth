@@ -36,15 +36,18 @@ var DebugInnerExecutionDuration time.Duration
 var DebugInnerTxToMsgDuration time.Duration
 var DebugInnerApplyMsgDuration time.Duration
 var DebugInnerapplyTxDuration time.Duration
+var DebugInnerapplyTx0Duration time.Duration
 var DebugInnerApplyTxDuration time.Duration
 var DebugInnerFnaliseDuration time.Duration
-var DebugInnerADuration time.Duration
+var DebugInnerNewEvmDuration time.Duration
 var DebugInnerLogDuration time.Duration
 var DebugInnerPrecheckDuration time.Duration
 var DebugInnerPrepareDuration time.Duration
 var DebugInnerFeeDuration time.Duration
 var DebugInnerTDBDuration time.Duration
 var DebugInnertdbDuration time.Duration
+var DebugInnertdb0Duration time.Duration
+var DebugInnerRervertDuration time.Duration
 
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
@@ -416,9 +419,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	snap := st.state.Snapshot()
 
 	result, err := st.innerTransitionDb()
+ 	DebugInnertdb0Duration += time.Since(start)
+
 	// Failed deposits must still be included. Unless we cannot produce the block at all due to the gas limit.
 	// On deposit failure, we rewind any state changes from after the minting, and increment the nonce.
 	if err != nil && err != ErrGasLimitReached && st.msg.IsDepositTx {
+		start = time.Now()
 		st.state.RevertToSnapshot(snap)
 		// Even though we revert the state changes, always increment the nonce for the next deposit transaction
 		st.state.SetNonce(st.msg.From, st.state.GetNonce(st.msg.From)+1)
@@ -436,6 +442,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			ReturnData: nil,
 		}
 		err = nil
+		DebugInnerRervertDuration += time.Since(start)
 	}
 	return result, err
 }
@@ -457,6 +464,7 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 		DebugInnertdbDuration += time.Since(start)
 	}()
 	if err := st.preCheck(); err != nil {
+		DebugInnerPrecheckDuration += time.Since(start)
 		return nil, err
 	}
 	DebugInnerPrecheckDuration += time.Since(start)

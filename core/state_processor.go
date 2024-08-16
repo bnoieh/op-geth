@@ -122,9 +122,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM) (*types.Receipt, error) {
 	start := time.Now()
-	defer func () {
-		DebugInnerapplyTxDuration += time.Since(start)
-	}()
+
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
@@ -133,15 +131,17 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
 		nonce = statedb.GetNonce(msg.From)
 	}
-	DebugInnerADuration += time.Since(start)
+	defer func () {
+		DebugInnerapplyTxDuration += time.Since(start)
+	}()
 
 	// Apply the transaction to the current state (included in the env).
 	start = time.Now()
 	result, err := ApplyMessage(evm, msg, gp)
+	DebugInnerApplyMsgDuration += time.Since(start)
 	if err != nil {
 		return nil, err
 	}
-	DebugInnerApplyMsgDuration += time.Since(start)
 
 	// Update the state with pending changes.
 	var root []byte
@@ -207,15 +207,19 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		DebugInnerApplyTxDuration += time.Since(start)
 	}()
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
+	DebugInnerTxToMsgDuration += time.Since(start)
 	if err != nil {
 		return nil, err
 	}
-	DebugInnerTxToMsgDuration += time.Since(start)
 	// Create a new context to be used in the EVM environment
+	start = time.Now()
 	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
 	txContext := NewEVMTxContext(msg)
 	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
-	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
+	DebugInnerNewEvmDuration += time.Since(start)
+	ret, err := applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
+	DebugInnerapplyTx0Duration += time.Since(start)
+	return ret, err
 }
 
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root

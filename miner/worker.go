@@ -96,6 +96,7 @@ var (
 )
 
 var DebugWorkApplyDuration time.Duration
+var DebugWorkRevertDuration time.Duration
 
 // environment is the worker's current environment and holds all
 // information of the sealing block generation.
@@ -819,10 +820,8 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*
 	if err != nil {
 		return nil, err
 	}
-	start := time.Now()
 	env.txs = append(env.txs, tx)
 	env.receipts = append(env.receipts, receipt)
-	DebugWorkApplyDuration += time.Since(start)
 	return receipt.Logs, nil
 }
 
@@ -856,10 +855,14 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction) (*typ
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
+	start := time.Now()
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig())
+	DebugWorkApplyDuration += time.Since(start)
 	if err != nil {
+		start := time.Now()
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)
+		DebugWorkRevertDuration += time.Since(start)
 	}
 	return receipt, err
 }
@@ -1185,7 +1188,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	core.DebugInnerTxToMsgDuration = 0
 	core.DebugInnerApplyMsgDuration = 0
 	core.DebugInnerFnaliseDuration = 0
-	core.DebugInnerADuration = 0
+	core.DebugInnerNewEvmDuration = 0
 	core.DebugInnerLogDuration = 0
 	core.DebugInnerPrecheckDuration = 0
 	core.DebugInnerPrepareDuration = 0
@@ -1194,14 +1197,18 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	core.DebugInnerapplyTxDuration = 0
 	core.DebugInnerTDBDuration = 0
 	core.DebugInnertdbDuration = 0
+	core.DebugInnerapplyTx0Duration = 0
+	core.DebugInnerRervertDuration = 0
+	core.DebugInnertdb0Duration = 0
 	DebugWorkApplyDuration = 0
+	DebugWorkRevertDuration = 0
 
 	defer func() {
 		core.DebugInnerExecutionDuration = 0
 		core.DebugInnerTxToMsgDuration = 0
 		core.DebugInnerApplyMsgDuration = 0
 		core.DebugInnerFnaliseDuration = 0
-		core.DebugInnerADuration = 0
+		core.DebugInnerNewEvmDuration = 0
 		core.DebugInnerLogDuration = 0
 		core.DebugInnerPrecheckDuration = 0
 		core.DebugInnerPrepareDuration = 0
@@ -1210,7 +1217,11 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		core.DebugInnerapplyTxDuration = 0
 		core.DebugInnerTDBDuration = 0
 		core.DebugInnertdbDuration = 0
+		core.DebugInnerapplyTx0Duration = 0
+		core.DebugInnertdb0Duration = 0
+		core.DebugInnerRervertDuration = 0
 		DebugWorkApplyDuration = 0
+		DebugWorkRevertDuration = 0
 	}()
 
 	work, err := w.prepareWork(genParams)
@@ -1268,7 +1279,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		return &newPayloadResult{err: errInterruptedUpdate}
 	}
 
-	log.Info("inner exec timer", "exec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "chore", core.DebugInnerADuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "inner AT", core.DebugInnerApplyTxDuration, "innner at", core.DebugInnerapplyTxDuration, "innner TDB", core.DebugInnerTDBDuration, "inner tdb", core.DebugInnertdbDuration, "test", DebugWorkApplyDuration)
+	log.Info("inner exec timer", "exec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "new evm", core.DebugInnerNewEvmDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "inner AT", core.DebugInnerApplyTxDuration, "inner at0", core.DebugInnerapplyTx0Duration, "innner at", core.DebugInnerapplyTxDuration, "innner TDB", core.DebugInnerTDBDuration, "inner tdb0", core.DebugInnertdb0Duration, "inner tdb", core.DebugInnertdbDuration, "inner revert", core.DebugInnerRervertDuration, "work apply", DebugWorkApplyDuration, "work revert", DebugWorkRevertDuration)
 
 	start = time.Now()
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)
