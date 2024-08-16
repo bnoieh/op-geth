@@ -95,6 +95,8 @@ var (
 	txErrReplayMeter           = metrics.NewRegisteredMeter("miner/tx/replay", nil)
 )
 
+var DebugWorkApplyDuration time.Duration
+
 // environment is the worker's current environment and holds all
 // information of the sealing block generation.
 type environment struct {
@@ -817,8 +819,10 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*
 	if err != nil {
 		return nil, err
 	}
+	start := time.Now()
 	env.txs = append(env.txs, tx)
 	env.receipts = append(env.receipts, receipt)
+	DebugWorkApplyDuration += time.Since(start)
 	return receipt.Logs, nil
 }
 
@@ -868,34 +872,35 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	var coalescedLogs []*types.Log
 
 	start := time.Now()
-	peekTimer := time.Duration(0)
+	atomicTimer := time.Duration(0)
 	senderTimer := time.Duration(0)
 	commitTxTimer := time.Duration(0)
+	shiftTxTimer := time.Duration(0)
 	defer func() {
-		log.Info("commitTxs step timer", "duration", time.Since(start).Milliseconds(), "hash", env.header.Hash(), "peek", peekTimer.Milliseconds(), "sender", senderTimer.Milliseconds(), "commitTx", commitTxTimer.Milliseconds())
+		log.Info("commitTxs step timer", "duration", time.Since(start).Milliseconds(), "hash", env.header.Hash(), "atomic", atomicTimer.Milliseconds(), "sender", senderTimer.Milliseconds(), "commitTx", commitTxTimer.Milliseconds(), "shiftTxTimer", shiftTxTimer.Milliseconds())
 	}()
 
-	blockTxLimit := 12500
+	blockTxLimit := 15000
 	txCount := 0
 	for {
 		if txCount > blockTxLimit {
 			break
 		}
 		// Check interruption signal and abort building if it's fired.
+		start := time.Now()
 		if interrupt != nil {
 			if signal := interrupt.Load(); signal != commitInterruptNone {
 				return signalToErr(signal)
 			}
 		}
+		atomicTimer += time.Since(start)
 		// If we don't have enough gas for any further transactions then we're done.
 		if env.gasPool.Gas() < params.TxGas {
 			log.Trace("Not enough gas for further transactions", "have", env.gasPool, "want", params.TxGas)
 			break
 		}
 		// Retrieve the next transaction and abort if all done.
-		start := time.Now()
 		ltx := txs.Peek()
-		peekTimer += time.Since(start)
 
 		if ltx == nil {
 			break
@@ -946,14 +951,18 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		case errors.Is(err, core.ErrNonceTooLow):
 			// New head notification data race between the transaction pool and miner, shift
 			log.Trace("Skipping transaction with low nonce", "hash", ltx.Hash, "sender", from, "nonce", tx.Nonce())
+			start := time.Now()
 			txs.Shift()
+			shiftTxTimer += time.Since(start)
 			txErrNoncetoolowMeter.Mark(1)
 
 		case errors.Is(err, nil):
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
 			env.tcount++
+			start := time.Now()
 			txs.Shift()
+			shiftTxTimer += time.Since(start)
 			txSuccMeter.Mark(1)
 			txCount += 1
 
@@ -979,6 +988,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			*cpy[i] = *l
 		}
 		w.pendingLogsFeed.Send(cpy)
+		log.Error("nolan")
 	}
 	return nil
 }
@@ -1175,22 +1185,32 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	core.DebugInnerTxToMsgDuration = 0
 	core.DebugInnerApplyMsgDuration = 0
 	core.DebugInnerFnaliseDuration = 0
-	core.DebugInnerLogsDuration = 0
-	core.DebugInnerBloomDuration = 0
+	core.DebugInnerADuration = 0
+	core.DebugInnerLogDuration = 0
 	core.DebugInnerPrecheckDuration = 0
 	core.DebugInnerPrepareDuration = 0
 	core.DebugInnerFeeDuration = 0
+	core.DebugInnerApplyTxDuration = 0
+	core.DebugInnerapplyTxDuration = 0
+	core.DebugInnerTDBDuration = 0
+	core.DebugInnertdbDuration = 0
+	DebugWorkApplyDuration = 0
 
 	defer func() {
 		core.DebugInnerExecutionDuration = 0
 		core.DebugInnerTxToMsgDuration = 0
 		core.DebugInnerApplyMsgDuration = 0
 		core.DebugInnerFnaliseDuration = 0
-		core.DebugInnerLogsDuration = 0
-		core.DebugInnerBloomDuration = 0
+		core.DebugInnerADuration = 0
+		core.DebugInnerLogDuration = 0
 		core.DebugInnerPrecheckDuration = 0
 		core.DebugInnerPrepareDuration = 0
 		core.DebugInnerFeeDuration = 0
+		core.DebugInnerApplyTxDuration = 0
+		core.DebugInnerapplyTxDuration = 0
+		core.DebugInnerTDBDuration = 0
+		core.DebugInnertdbDuration = 0
+		DebugWorkApplyDuration = 0
 	}()
 
 	work, err := w.prepareWork(genParams)
@@ -1248,7 +1268,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		return &newPayloadResult{err: errInterruptedUpdate}
 	}
 
-	log.Info("inner exec timer", "exec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "bloom", core.DebugInnerBloomDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "logs", core.DebugInnerLogsDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration)
+	log.Info("inner exec timer", "exec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "chore", core.DebugInnerADuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "inner AT", core.DebugInnerApplyTxDuration, "innner at", core.DebugInnerapplyTxDuration, "innner TDB", core.DebugInnerTDBDuration, "inner tdb", core.DebugInnertdbDuration, "test", DebugWorkApplyDuration)
 
 	start = time.Now()
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)

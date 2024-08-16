@@ -35,12 +35,16 @@ import (
 var DebugInnerExecutionDuration time.Duration
 var DebugInnerTxToMsgDuration time.Duration
 var DebugInnerApplyMsgDuration time.Duration
+var DebugInnerapplyTxDuration time.Duration
+var DebugInnerApplyTxDuration time.Duration
 var DebugInnerFnaliseDuration time.Duration
-var DebugInnerLogsDuration time.Duration
-var DebugInnerBloomDuration time.Duration
+var DebugInnerADuration time.Duration
+var DebugInnerLogDuration time.Duration
 var DebugInnerPrecheckDuration time.Duration
 var DebugInnerPrepareDuration time.Duration
 var DebugInnerFeeDuration time.Duration
+var DebugInnerTDBDuration time.Duration
+var DebugInnertdbDuration time.Duration
 
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
@@ -402,6 +406,10 @@ func (st *StateTransition) preCheck() error {
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
 func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
+	start := time.Now()
+	defer func () {
+		DebugInnerTDBDuration += time.Since(start)
+	}()
 	if mint := st.msg.Mint; mint != nil {
 		st.state.AddBalance(st.msg.From, mint)
 	}
@@ -445,6 +453,9 @@ func (st *StateTransition) innerTransitionDb() (*ExecutionResult, error) {
 
 	// Check clauses 1-3, buy gas if everything is correct
 	start := time.Now()
+	defer func () {
+		DebugInnertdbDuration += time.Since(start)
+	}()
 	if err := st.preCheck(); err != nil {
 		return nil, err
 	}

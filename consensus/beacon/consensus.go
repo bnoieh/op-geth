@@ -383,6 +383,10 @@ func (beacon *Beacon) Finalize(chain consensus.ChainHeaderReader, header *types.
 // FinalizeAndAssemble implements consensus.Engine, setting the final state and
 // assembling the block.
 func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal) (*types.Block, error) {
+	start := time.Now()
+	defer func () {
+		log.Info("inner FinalizeAndAssemble", "duration", time.Since(start), "hash", header.Hash())
+	}()
 	if !beacon.IsPoSHeader(header) {
 		return beacon.ethone.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts, nil)
 	}
@@ -398,7 +402,7 @@ func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 		}
 	}
 	// Finalize and assemble the block.
-	start := time.Now()
+	start = time.Now()
 	beacon.Finalize(chain, header, state, txs, uncles, withdrawals)
 	log.Info("assemble:finalize", "duration", time.Since(start), "hash", header.Hash())
 	// Assign the final state root to header.

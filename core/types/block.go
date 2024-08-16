@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -224,6 +225,7 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 	b := &Block{header: CopyHeader(header)}
 
 	// TODO: panic if len(txs) != len(receipts)
+	start := time.Now()
 	if len(txs) == 0 {
 		b.header.TxHash = EmptyTxsHash
 	} else {
@@ -231,12 +233,15 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 		b.transactions = make(Transactions, len(txs))
 		copy(b.transactions, txs)
 	}
+	log.Info("new block timer", "tx hash duration", time.Since(start))
 
 	if len(receipts) == 0 {
 		b.header.ReceiptHash = EmptyReceiptsHash
 	} else {
 		b.header.ReceiptHash = DeriveSha(Receipts(receipts), hasher)
+		log.Info("new block timer", "receipt hash duration", time.Since(start))
 		b.header.Bloom = CreateBloom(receipts)
+		log.Info("new block timer", "bloom duration", time.Since(start))
 	}
 
 	if len(uncles) == 0 {
