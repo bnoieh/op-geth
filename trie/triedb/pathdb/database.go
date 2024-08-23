@@ -259,9 +259,11 @@ func (db *Database) Update(root common.Hash, parentRoot common.Hash, block uint6
 	if err := db.modifyAllowed(); err != nil {
 		return err
 	}
+	start := time.Now()
 	if err := db.tree.add(root, parentRoot, block, nodes, states); err != nil {
 		return err
 	}
+	log.Info("pathdb update:add", time.Since(start), "block", block)
 	db.capLock.Lock()
 	gopool.Submit(func() {
 		defer db.capLock.Unlock()
@@ -270,11 +272,14 @@ func (db *Database) Update(root common.Hash, parentRoot common.Hash, block uint6
 		// - head-1 layer is paired with HEAD-1 state
 		// - head-127 layer(bottom-most diff layer) is paired with HEAD-127 state
 		// - head-128 layer(disk layer) is paired with HEAD-128 state
+		start := time.Now()
 		err := db.tree.cap(root, maxDiffLayers)
+		log.Info("pathdb update:cap1", "duration", time.Since(start), "block", block)
 		if err != nil {
 			log.Crit("failed to cap layer tree", "error", err)
 		}
 	})
+	log.Info("pathdb update:cap2", "duration", time.Since(start), "block", block)
 	return nil
 }
 

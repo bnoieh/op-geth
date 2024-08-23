@@ -19,11 +19,13 @@ package core
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -180,7 +182,9 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 		},
 		func() error {
 			// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, Rn]]))
+			start := time.Now()
 			receiptSha := types.DeriveSha(receipts, trie.NewStackTrie(nil))
+			log.Info("validateState:deriveSha", "duration", time.Since(start), "hash", block.Hash())
 			if receiptSha != header.ReceiptHash {
 				return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
 			}

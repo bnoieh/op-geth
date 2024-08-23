@@ -1519,7 +1519,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Crit("Failed to write block into disk", "err", err)
 		}
 		blockWriteExternalTimer.UpdateSince(start)
-		log.Info("blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+		log.Info("blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "len", len(receipts))
 	}()
 
 	// Commit all cached state changes into underlying memory database.
@@ -1729,7 +1729,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
 	SenderCacher.RecoverFromBlocks(types.MakeSigner(bc.chainConfig, chain[0].Number(), chain[0].Time()), chain)
-	log.Info("InsertChainTimer:RecoverFromBlocks", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 	var (
 		stats     = insertStats{startTime: mclock.Now()}
@@ -1748,11 +1747,11 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	}
 	abort, results := bc.engine.VerifyHeaders(bc, headers)
 	defer close(abort)
-	log.Info("InsertChainTimer:VerifyHeaders", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 	// Peek the error for the first block to decide the directing import logic
 	it := newInsertIterator(chain, results, bc.validator)
 	block, err := it.next()
+	log.Info("InsertChainTimer:it.next", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 	// Left-trim all the known blocks that don't need to build snapshot
 	if bc.skipBlock(err, it) {
@@ -1856,7 +1855,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	defer func() {
 		DebugInnerExecutionDuration = 0
 	}()
+	log.Info("InsertChainTimer:beforefor", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 	for ; block != nil && err == nil || errors.Is(err, ErrKnownBlock); block, err = it.next() {
+		log.Info("InsertChainTimer:afterfor", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
+
 		DebugInnerExecutionDuration = 0
 		// If the chain is terminating, stop processing blocks
 		if bc.insertStopped() {
@@ -1970,6 +1972,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		ptime := time.Since(pstart)
 
 		vstart := time.Now()
+
+		log.Info("New payload miner metric", "hash", block.Hash(), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes))
+
 		if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
 			bc.reportBlock(block, receipts, err)
 			followupInterrupt.Store(true)
@@ -2020,7 +2025,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		blockWriteTimer.UpdateSince(wstart)
 		blockInsertTimer.UpdateSince(start)
 
-		log.Info("New payload db write metrics (commit)", "commit", time.Since(wstart), "hash", block.Hash(), "insert", common.PrettyDuration(time.Since(start)), "writeDB", common.PrettyDuration(time.Since(wstart)), "writeBlock", common.PrettyDuration(time.Since(wstart)), "accountCommit", common.PrettyDuration(statedb.AccountCommits), "storageCommit", common.PrettyDuration(statedb.StorageCommits), "snapshotCommits", common.PrettyDuration(statedb.SnapshotCommits), "triedbCommit", common.PrettyDuration(statedb.TrieDBCommits))
+		log.Info("New payload db write metrics (commit)", "commit", time.Since(wstart), "hash", block.Hash(), "nubmer", block.Number().Uint64(), "insert", common.PrettyDuration(time.Since(start)), "accountCommit", common.PrettyDuration(statedb.AccountCommits), "storageCommit", common.PrettyDuration(statedb.StorageCommits), "snapshotCommits", common.PrettyDuration(statedb.SnapshotCommits), "triedbCommit", common.PrettyDuration(statedb.TrieDBCommits))
 
 		// Report the import stats before returning the various results
 		stats.processed++
@@ -2034,7 +2039,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, setHead)
 		blockGasUsedGauge.Update(int64(block.GasUsed()) / 1000000)
 
-		bc.CacheBlock(block.Hash(), block)
+		// bc.CacheBlock(block.Hash(), block)
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count

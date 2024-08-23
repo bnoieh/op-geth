@@ -532,7 +532,7 @@ func writeHistory(freezer *rawdb.ResettableFreezer, dl *diffLayer) error {
 	historyDataBytesMeter.Mark(int64(dataSize))
 	historyIndexBytesMeter.Mark(int64(indexSize))
 	historyBuildTimeMeter.UpdateSince(start)
-	log.Debug("Stored state history", "id", dl.stateID(), "block", dl.block, "data", dataSize, "index", indexSize, "elapsed", common.PrettyDuration(time.Since(start)))
+	log.Info("Stored state history", "id", dl.stateID(), "block", dl.block, "data", dataSize, "index", indexSize, "elapsed", common.PrettyDuration(time.Since(start)))
 
 	return nil
 }
