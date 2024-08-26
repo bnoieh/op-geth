@@ -129,20 +129,22 @@ type StateDB struct {
 	nextRevisionId int
 
 	// Measurements gathered during execution for debugging purposes
-	AccountReads         time.Duration
-	AccountHashes        time.Duration
-	AccountUpdates       time.Duration
-	AccountCommits       time.Duration
-	StorageReads         time.Duration
-	StorageHashes        time.Duration
-	StorageUpdates       time.Duration
-	StorageCommits       time.Duration
-	SnapshotAccountReads time.Duration
-	SnapshotStorageReads time.Duration
-	SnapshotCommits      time.Duration
-	TrieDBCommits        time.Duration
-	TrieCommits          time.Duration
-	CodeCommits          time.Duration
+	AccountReads            time.Duration
+	AccountHashes           time.Duration
+	AccountUpdates          time.Duration
+	AccountCommits          time.Duration
+	StorageReads            time.Duration
+	StorageHashes           time.Duration
+	StorageUpdates          time.Duration
+	StorageCommits          time.Duration
+	SnapshotAccountReads    time.Duration
+	SnapshotStorageReads    time.Duration
+	SnapshotCommits         time.Duration
+	TrieDBCommits           time.Duration
+	TrieCommits             time.Duration
+	CodeCommits             time.Duration
+	UpdateStoragesRootTimer time.Duration
+	UpdateAccountRootTimer  time.Duration
 
 	AccountUpdated int
 	StorageUpdated int
@@ -935,8 +937,13 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
+	start := time.Now()
 	s.AccountsIntermediateRoot()
-	return s.StateIntermediateRoot()
+	s.UpdateStoragesRootTimer += time.Since(start)
+	start = time.Now()
+	root := s.StateIntermediateRoot()
+	s.UpdateAccountRootTimer += time.Since(start)
+	return root
 }
 
 func (s *StateDB) AccountsIntermediateRoot() {

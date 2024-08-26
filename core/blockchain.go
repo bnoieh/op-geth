@@ -1997,7 +1997,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		innerExecutionTimer.Update(DebugInnerExecutionDuration)
 
-		log.Info("New payload execution and validation metrics (execution, validation)", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes))
+		log.Info("New payload execution and validation metrics (execution, validation)", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes), "updateStoragesRoot", statedb.UpdateStoragesRootTimer, "updateAccountRoot", statedb.UpdateAccountRootTimer)
 
 		// Write the block to the chain and get the status.
 		var (
@@ -2025,7 +2025,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		blockWriteTimer.UpdateSince(wstart)
 		blockInsertTimer.UpdateSince(start)
 
-		log.Info("New payload db write metrics (commit)", "commit", time.Since(wstart), "hash", block.Hash(), "nubmer", block.Number().Uint64(), "insert", common.PrettyDuration(time.Since(start)), "accountCommit", common.PrettyDuration(statedb.AccountCommits), "storageCommit", common.PrettyDuration(statedb.StorageCommits), "snapshotCommits", common.PrettyDuration(statedb.SnapshotCommits), "triedbCommit", common.PrettyDuration(statedb.TrieDBCommits))
+		log.Info("New payload db write metrics (commit)", "commit", time.Since(wstart), "hash", block.Hash(), "nubmer", block.Number().Uint64(), "insert", common.PrettyDuration(time.Since(start)), "accountCommit", common.PrettyDuration(statedb.AccountCommits), "storageCommit", common.PrettyDuration(statedb.StorageCommits), "snapshotCommits", common.PrettyDuration(statedb.SnapshotCommits), "triedbCommit", common.PrettyDuration(statedb.TrieDBCommits), "codeCommit", statedb.CodeCommits)
 
 		// Report the import stats before returning the various results
 		stats.processed++
