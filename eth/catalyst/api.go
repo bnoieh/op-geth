@@ -537,7 +537,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 	start := time.Now()
 	defer func() {
 		newPayloadTimer.UpdateSince(start)
-		log.Info("newPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
+		log.Info("debug-perf-prefix newPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	}()
 
 	// The locking here is, strictly, not required. Without these locks, this can happen:
@@ -562,7 +562,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 		log.Warn("Invalid NewPayload params", "params", params, "error", err)
 		return api.invalid(err, nil), nil
 	}
-	log.Info("engine.ExecutableDataToBlock", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
+	log.Info("debug-perf-prefix engine.ExecutableDataToBlock", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	// Stash away the last update to warn the user if the beacon client goes offline
 	api.lastNewPayloadLock.Lock()
 	api.lastNewPayloadUpdate = time.Now()
@@ -623,7 +623,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 		return engine.PayloadStatusV1{Status: engine.ACCEPTED}, nil
 	}
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
-	log.Info("Prepare newPayload", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
+	log.Info("debug-perf-prefix Prepare newPayload", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	if err := api.eth.BlockChain().InsertBlockWithoutSetHead(block); err != nil {
 		log.Warn("NewPayloadV1: inserting block failed", "error", err)
 
@@ -634,6 +634,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 
 		return api.invalid(err, parent.Header()), nil
 	}
+	log.Info("debug-perf-prefix InsertBlockWithoutSetHead", "duration", common.PrettyDuration(time.Since(start)), "parentHash", params.ParentHash)
 	// We've accepted a valid payload from the beacon client. Mark the local
 	// chain transitions to notify other subsystems (e.g. downloader) of the
 	// behavioral change.

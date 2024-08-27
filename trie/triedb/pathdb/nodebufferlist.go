@@ -880,7 +880,7 @@ func (mf *multiDifflayer) flush(db ethdb.KeyValueStore, clean *fastcache.Cache, 
 	commitBytesMeter.Mark(int64(size))
 	commitNodesMeter.Mark(int64(nodes))
 	commitTimeTimer.UpdateSince(start)
-	log.Info("Persisted pathdb nodes", "nodes", len(mf.nodes), "bytes", common.StorageSize(size), "state_id", id, "elapsed", common.PrettyDuration(time.Since(start)))
+	log.Info("debug-perf-prefix Persisted pathdb nodes", "nodes", len(mf.nodes), "bytes", common.StorageSize(size), "state_id", id, "elapsed", common.PrettyDuration(time.Since(start)))
 	return nil
 }
 

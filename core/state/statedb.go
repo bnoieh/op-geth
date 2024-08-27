@@ -1324,7 +1324,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			//storageTriesDeletedMeter.Mark(int64(storageTrieNodesDeleted))
 			s.AccountUpdated, s.AccountDeleted = 0, 0
 			s.StorageUpdated, s.StorageDeleted = 0, 0
-			log.Info("stateDBCommitTimer", "duration", time.Since(start), "block", block)
+			log.Info("debug-perf-prefix stateDBCommitTimer", "duration", time.Since(start), "block", block)
 		}(time.Now())
 	}
 
@@ -1333,7 +1333,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			if metrics.EnabledExpensive {
 				defer func(start time.Time) {
 					s.TrieCommits += time.Since(start)
-					log.Info("stateDBCommitTimer:trieCommit", "duration", time.Since(start), "block", block)
+					log.Info("debug-perf-prefix stateDBCommitTimer:trieCommit", "duration", time.Since(start), "block", block)
 				}(time.Now())
 			}
 			if s.fullProcessed {
@@ -1346,7 +1346,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			var err error
 			// Handle all state deletions first
 			incomplete, err = s.handleDestruction(nodes)
-			log.Info("stateDBCommitTimer:destruction", "duration", time.Since(begin), "block", block)
+			log.Info("debug-perf-prefix stateDBCommitTimer:destruction", "duration", time.Since(begin), "block", block)
 			if err != nil {
 				return err
 			}
@@ -1376,7 +1376,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					}
 				}()
 			}
-			log.Info("stateDBCommitTimer:storageCommit1", "duration", time.Since(begin), "block", block)
+			log.Info("debug-perf-prefix stateDBCommitTimer:storageCommit1", "duration", time.Since(begin), "block", block)
 			sCommitTimer := time.Duration(0)
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
@@ -1398,7 +1398,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					tasksNum++
 				}
 			}
-			log.Info("stateDBCommitTimer:storageCommit2", "duration", time.Since(begin), "scommitTimer", sCommitTimer, "block", block)
+			log.Info("debug-perf-prefix stateDBCommitTimer:storageCommit2", "duration", time.Since(begin), "scommitTimer", sCommitTimer, "block", block)
 
 			for i := 0; i < tasksNum; i++ {
 				res := <-taskResults
@@ -1416,7 +1416,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 				}
 			}
 			close(finishCh)
-			log.Info("stateDBCommitTimer:storageCommit3", "duration", time.Since(begin), "block", block)
+			log.Info("debug-perf-prefix stateDBCommitTimer:storageCommit3", "duration", time.Since(begin), "block", block)
 
 			if !s.noTrie {
 				var start time.Time
@@ -1424,7 +1424,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					start = time.Now()
 				}
 				root, set, err := s.trie.Commit(true)
-				log.Info("stateDBCommitTimer:accountCommit1", "duration", time.Since(start), "block", block)
+				log.Info("debug-perf-prefix stateDBCommitTimer:accountCommit1", "duration", time.Since(start), "block", block)
 
 				if err != nil {
 					return err
@@ -1438,7 +1438,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 				}
 				if metrics.EnabledExpensive {
 					s.AccountCommits += time.Since(start)
-					log.Info("stateDBCommitTimer:accountCommit2", "duration", time.Since(start), "block", block)
+					log.Info("debug-perf-prefix stateDBCommitTimer:accountCommit2", "duration", time.Since(start), "block", block)
 				}
 
 				origin := s.originalRoot
@@ -1455,7 +1455,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					s.originalRoot = root
 					if metrics.EnabledExpensive {
 						s.TrieDBCommits += time.Since(start)
-						log.Info("stateDBCommitTimer:trieDBCommit", "duration", time.Since(start), "block", block)
+						log.Info("debug-perf-prefix stateDBCommitTimer:trieDBCommit", "duration", time.Since(start), "block", block)
 					}
 					if s.onCommit != nil {
 						s.onCommit(set)
@@ -1499,13 +1499,13 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 				if metrics.EnabledExpensive {
 					defer func(start time.Time) {
 						s.SnapshotCommits += time.Since(start)
-						log.Info("stateDBCommitTimer:snapshotCommit", "duration", time.Since(start), "block", block)
 					}(time.Now())
 				}
 				// Only update if there's a state transition (skip empty Clique blocks)
 				if parent := s.snap.Root(); parent != s.expectedRoot {
+					start := time.Now()
 					err := s.snaps.Update(s.expectedRoot, parent, s.convertAccountSet(s.stateObjectsDestruct), s.accounts, s.storages)
-
+					log.Info("debug-perf-prefix snapshotCommit:update", "duration", time.Since(start), "block", block)
 					if err != nil {
 						log.Warn("Failed to update snapshot tree", "from", parent, "to", s.expectedRoot, "err", err)
 					}
@@ -1519,7 +1519,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 						if err := s.snaps.Cap(s.expectedRoot, 128); err != nil {
 							log.Warn("Failed to cap snapshot tree", "root", s.expectedRoot, "layers", 128, "err", err)
 						}
-						log.Info("cap snaps", "duration", time.Since(start), "block", block)
+						log.Info("debug-perf-prefix cap snaps", "duration", time.Since(start), "block", block)
 					}()
 				}
 			}
@@ -1535,14 +1535,14 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			commitRes <- tmpFunc()
 		}()
 	}
-	log.Info("stateDBCommitTimer:commitFunc1", "duration", time.Since(start), "block", block)
+	log.Info("debug-perf-prefix stateDBCommitTimer:commitFunc1", "duration", time.Since(start), "block", block)
 	for i := 0; i < len(commitFuncs); i++ {
 		r := <-commitRes
 		if r != nil {
 			return common.Hash{}, r
 		}
 	}
-	log.Info("stateDBCommitTimer:commitFunc2", "duration", time.Since(start), "block", block)
+	log.Info("debug-perf-prefix stateDBCommitTimer:commitFunc2", "duration", time.Since(start), "block", block)
 
 	root := s.stateRoot
 	s.snap = nil
