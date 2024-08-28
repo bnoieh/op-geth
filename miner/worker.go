@@ -874,19 +874,19 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	}
 	var coalescedLogs []*types.Log
 
+	blockTxLimit := 12000
+	txCount := 0
 	start := time.Now()
 	atomicTimer := time.Duration(0)
 	senderTimer := time.Duration(0)
 	commitTxTimer := time.Duration(0)
 	shiftTxTimer := time.Duration(0)
 	defer func() {
-		log.Info("debug-perf-prefix commitTransactions", "duration", time.Since(start), "hash", env.header.Hash(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "sender", senderTimer)
+		log.Info("debug-perf-prefix commitTransactions", "duration", time.Since(start), "hash", env.header.Hash(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "sender", senderTimer, "validateTX", env.tcount, "nonceTL", txCount)
 	}()
 
-	blockTxLimit := 15000
-	txCount := 0
 	for {
-		if txCount > blockTxLimit {
+		if env.tcount > blockTxLimit {
 			break
 		}
 		// Check interruption signal and abort building if it's fired.
@@ -906,6 +906,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		ltx := txs.Peek()
 
 		if ltx == nil {
+			log.Info("debug-perf-prefix txpool empty",  "hash", env.header.Hash())
 			break
 		}
 		txTotalMeter.Mark(1)
@@ -958,6 +959,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			txs.Shift()
 			shiftTxTimer += time.Since(start)
 			txErrNoncetoolowMeter.Mark(1)
+			txCount++
 
 		case errors.Is(err, nil):
 			// Everything ok, collect the logs and shift in the next transaction from the same account
@@ -967,7 +969,6 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 			txs.Shift()
 			shiftTxTimer += time.Since(start)
 			txSuccMeter.Mark(1)
-			txCount += 1
 
 		default:
 			// Transaction is regarded as invalid, drop all consecutive transactions from
@@ -1279,7 +1280,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 		return &newPayloadResult{err: errInterruptedUpdate}
 	}
 
-	log.Info("debug-perf-prefix inner exec timer", "evmExec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "newEvm", core.DebugInnerNewEvmDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "innerAT", core.DebugInnerApplyTxDuration, "innerat0", core.DebugInnerapplyTx0Duration, "innnerat", core.DebugInnerapplyTxDuration, "innnerTDB", core.DebugInnerTDBDuration, "innertdb0", core.DebugInnertdb0Duration, "innertdb", core.DebugInnertdbDuration, "innerrevert", core.DebugInnerRervertDuration, "workapply", DebugWorkApplyDuration, "workrevert", DebugWorkRevertDuration)
+	log.Info("debug-perf-prefix inner exec timer", "parent", genParams.parentHash, "evmExec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "newEvm", core.DebugInnerNewEvmDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "innerAT", core.DebugInnerApplyTxDuration, "innerat0", core.DebugInnerapplyTx0Duration, "innnerat", core.DebugInnerapplyTxDuration, "innnerTDB", core.DebugInnerTDBDuration, "innertdb0", core.DebugInnertdb0Duration, "innertdb", core.DebugInnertdbDuration, "innerrevert", core.DebugInnerRervertDuration, "workapply", DebugWorkApplyDuration, "workrevert", DebugWorkRevertDuration)
 
 	start = time.Now()
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)
