@@ -286,7 +286,7 @@ func (dl *diskLayer) commit(bottom *diffLayer, force bool) (*diskLayer, error) {
 	start := time.Now()
 	if dl.db.freezer != nil {
 		err := writeHistory(dl.db.freezer, bottom)
-		log.Info("debug-perf-prefix pathdb writeHistory", "duration", time.Since(start))
+		log.Info("debug-perf-prefix pathdbCommit:writeHistory", "duration", time.Since(start))
 		if err != nil {
 			return nil, err
 		}
@@ -313,7 +313,7 @@ func (dl *diskLayer) commit(bottom *diffLayer, force bool) (*diskLayer, error) {
 	}
 	start = time.Now()
 	rawdb.WriteStateID(dl.db.diskdb, bottom.rootHash(), bottom.stateID())
-	log.Info("debug-perf-prefix pathdb writeStateID", "duration", time.Since(start))
+	log.Info("debug-perf-prefix pathdbCommit:writeStateID", "duration", time.Since(start))
 
 	// Construct a new disk layer by merging the nodes from the provided diff
 	// layer, and flush the content in disk layer if there are too many nodes
@@ -331,14 +331,14 @@ func (dl *diskLayer) commit(bottom *diffLayer, force bool) (*diskLayer, error) {
 	if err := ndl.buffer.flush(ndl.db.diskdb, ndl.cleans, ndl.id, force); err != nil {
 		return nil, err
 	}
-	log.Info("debug-perf-prefix pathdb flush", "duration", time.Since(start))
+	log.Info("debug-perf-prefix pathdbCommit:flush", "duration", time.Since(start))
 
 	// To remove outdated history objects from the end, we set the 'tail' parameter
 	// to 'oldest-1' due to the offset between the freezer index and the history ID.
 	start = time.Now()
 	if overflow {
 		pruned, err := truncateFromTail(ndl.db.diskdb, ndl.db.freezer, oldest-1)
-		log.Info("debug-perf-prefix pathdb truncateHistory", "duration", time.Since(start))
+		log.Info("debug-perf-prefix pathdbCommit:truncateHistory", "duration", time.Since(start))
 
 		if err != nil {
 			return nil, err

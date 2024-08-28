@@ -993,6 +993,7 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	// Add the block to the canonical chain number scheme and mark as the head
+	start := time.Now()
 	batch := bc.db.NewBatch()
 	rawdb.WriteHeadHeaderHash(batch, block.Hash())
 	rawdb.WriteHeadFastBlockHash(batch, block.Hash())
@@ -1004,6 +1005,7 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to update chain indexes and markers", "err", err)
 	}
+	log.Info("debug-perf-prefix SetCanonical:db", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 	// Update all in-memory chain markers in the last step
 	bc.hc.SetCurrentHeader(block.Header())
 
@@ -1720,7 +1722,7 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error) {
 	begin := time.Now()
 	defer func () {
-		log.Info("debug-perf-prefix InsertChainTimer", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
+		log.Info("InsertChainTimer", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 	}()
 	// If the chain is terminating, don't even bother starting up.
 	if bc.insertStopped() {
@@ -1855,9 +1857,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	defer func() {
 		DebugInnerExecutionDuration = 0
 	}()
-	log.Info("debug-perf-prefix InsertChainTimer:beforefor", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
+	log.Info("InsertChainTimer:beforefor", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 	for ; block != nil && err == nil || errors.Is(err, ErrKnownBlock); block, err = it.next() {
-		log.Info("debug-perf-prefix InsertChainTimer:afterfor", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
+		log.Info("InsertChainTimer:afterfor", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 		DebugInnerExecutionDuration = 0
 		// If the chain is terminating, stop processing blocks
@@ -1910,7 +1912,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			continue
 		}
 
-		log.Info("debug-perf-prefix InsertChainTimer:BeforeExec", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
+		log.Info("InsertChainTimer:BeforeExec", "duration", common.PrettyDuration(time.Since(begin)), "hash", chain[0].Header().Hash())
 
 		var (
 			receipts, receiptExist = bc.miningReceiptsCache.Get(block.Hash())
@@ -1973,7 +1975,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		vstart := time.Now()
 
-		log.Info("debug-perf-prefix New payload miner metric", "hash", block.Hash(), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes))
+		log.Info("New payload miner metric", "hash", block.Hash(), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes))
 
 		if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
 			bc.reportBlock(block, receipts, err)
@@ -1997,7 +1999,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		innerExecutionTimer.Update(DebugInnerExecutionDuration)
 
-		log.Info("debug-perf-prefix New payload execution and validation metrics (execution, validation)", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes), "updateStoragesRoot", statedb.UpdateStoragesRootTimer, "updateAccountRoot", statedb.UpdateAccountRootTimer)
+		log.Info("debug-perf-prefix New payload execution and validation", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes), "updateStoragesRoot", statedb.UpdateStoragesRootTimer, "updateAccountRoot", statedb.UpdateAccountRootTimer)
 
 		// Write the block to the chain and get the status.
 		var (

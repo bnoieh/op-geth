@@ -512,7 +512,7 @@ func (t *Tree) cap(diff *diffLayer, layers int) *diskLayer {
 	bottom.lock.RLock()
 	start := time.Now()
 	base := diffToDisk(bottom)
-	log.Info("debug-perf-prefix snapshot flush", "duration", time.Since(start))
+	log.Info("debug-perf-prefix snapshotCommit:flush", "duration", time.Since(start))
 	bottom.lock.RUnlock()
 
 	t.layers[base.root] = base

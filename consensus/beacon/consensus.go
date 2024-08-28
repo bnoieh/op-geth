@@ -407,7 +407,7 @@ func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 	log.Info("assemble:finalize", "duration", time.Since(start), "hash", header.Hash())
 	// Assign the final state root to header.
 	header.Root = state.IntermediateRoot(true)
-	log.Info("assemble:IntermediateRoot", "duration", time.Since(start), "hash", header.Hash())
+	log.Info("debug-perf-prefix assemble:IntermediateRoot", "duration", time.Since(start), "hash", header.Hash())
 
 	// Assemble and return the final block.
 	return types.NewBlockWithWithdrawals(header, txs, uncles, receipts, withdrawals, trie.NewStackTrie(nil)), nil
