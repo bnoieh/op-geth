@@ -1005,7 +1005,7 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to update chain indexes and markers", "err", err)
 	}
-	log.Info("debug-perf-prefix SetCanonical:db", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Info("debug-perf-prefix debug-db-prefix SetCanonical:db", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 	// Update all in-memory chain markers in the last step
 	bc.hc.SetCurrentHeader(block.Header())
 
@@ -1521,7 +1521,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Crit("Failed to write block into disk", "err", err)
 		}
 		blockWriteExternalTimer.UpdateSince(start)
-		log.Info("debug-perf-prefix blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "len", len(receipts))
+		log.Info("debug-perf-prefix debug-db-prefix blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "len", len(receipts))
 	}()
 
 	// Commit all cached state changes into underlying memory database.
@@ -2292,10 +2292,13 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 	if excessBlobGas != nil {
 		blobGasPrice = eip4844.CalcBlobFee(*excessBlobGas)
 	}
+	start := time.Now()
 	receipts := rawdb.ReadRawReceipts(bc.db, b.Hash(), b.NumberU64())
+	log.Info("debug-perf-prefix setCanonical:readReceipts", "duration", time.Since(start), "hash", b.Hash())
 	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), blobGasPrice, b.Transactions()); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
+	log.Info("debug-perf-prefix setCanonical:DeriveFields", "duration", time.Since(start), "hash", b.Hash())
 	var logs []*types.Log
 	for _, receipt := range receipts {
 		for _, log := range receipt.Logs {
@@ -2305,6 +2308,7 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 			logs = append(logs, log)
 		}
 	}
+	log.Info("debug-perf-prefix setCanonical:for", "duration", time.Since(start), "hash", b.Hash())
 	return logs
 }
 
