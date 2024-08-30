@@ -131,7 +131,7 @@ func (indexer *txIndexer) loop(chain *BlockChain) {
 		done     chan struct{} // Non-nil if background routine is active.
 		lastHead uint64        // The latest announced chain head (whose tx indexes are assumed created)
 
-		headCh = make(chan ChainHeadEvent, 10)
+		headCh = make(chan ChainHeadEvent)
 		sub    = chain.SubscribeChainHeadEvent(headCh)
 	)
 	defer sub.Unsubscribe()
