@@ -990,17 +990,21 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	// Add the block to the canonical chain number scheme and mark as the head
+	start := time.Now()
 	batch := bc.db.NewBatch()
 	rawdb.WriteHeadHeaderHash(batch, block.Hash())
 	rawdb.WriteHeadFastBlockHash(batch, block.Hash())
 	rawdb.WriteCanonicalHash(batch, block.Hash(), block.NumberU64())
 	rawdb.WriteTxLookupEntriesByBlock(batch, block)
 	rawdb.WriteHeadBlockHash(batch, block.Hash())
+	log.Debug("d-f writeHeadBlock write", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 
 	// Flush the whole batch into the disk, exit the node if failed
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to update chain indexes and markers", "err", err)
 	}
+	log.Debug("d-f writeHeadBlock batch", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+
 	// Update all in-memory chain markers in the last step
 	bc.hc.SetCurrentHeader(block.Header())
 
@@ -2215,15 +2219,19 @@ func (bc *BlockChain) recoverAncestors(block *types.Block) (common.Hash, error) 
 // collectLogs collects the logs that were generated or removed during
 // the processing of a block. These logs are later announced as deleted or reborn.
 func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
+	start := time.Now()
 	var blobGasPrice *big.Int
 	excessBlobGas := b.ExcessBlobGas()
 	if excessBlobGas != nil {
 		blobGasPrice = eip4844.CalcBlobFee(*excessBlobGas)
 	}
 	receipts := rawdb.ReadRawReceipts(bc.db, b.Hash(), b.NumberU64())
+	log.Debug("d-f collectLogs ReadRawReceipts", "duration", common.PrettyDuration(time.Since(start)), "hash", b.Hash())
+
 	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), blobGasPrice, b.Transactions()); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
+	log.Debug("d-f collectLogs DeriveFields", "duration", common.PrettyDuration(time.Since(start)), "hash", b.Hash())
 	var logs []*types.Log
 	for _, receipt := range receipts {
 		for _, log := range receipt.Logs {
@@ -2430,6 +2438,7 @@ func (bc *BlockChain) InsertBlockWithoutSetHead(block *types.Block) error {
 // block. It's possible that the state of the new head is missing, and it will
 // be recovered in this function as well.
 func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
+	start := time.Now()
 	if !bc.chainmu.TryLock() {
 		return common.Hash{}, errChainStopped
 	}
@@ -2442,22 +2451,30 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 		}
 		log.Info("Recovered head state", "number", head.Number(), "hash", head.Hash())
 	}
+	log.Debug("d-f SetCanonical 1", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	// Run the reorg if necessary and set the given block as new head.
-	start := time.Now()
+	start = time.Now()
 	if head.ParentHash() != bc.CurrentBlock().Hash() {
 		if err := bc.reorg(bc.CurrentBlock(), head); err != nil {
 			return common.Hash{}, err
 		}
 	}
+	log.Debug("d-f SetCanonical reorg", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	bc.writeHeadBlock(head)
+	log.Debug("d-f SetCanonical writeHeadBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 
 	// Emit events
 	logs := bc.collectLogs(head, false)
+	log.Debug("d-f SetCanonical collectLogs", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+
 	bc.chainFeed.Send(ChainEvent{Block: head, Hash: head.Hash(), Logs: logs})
+	log.Debug("d-f SetCanonical chainFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	if len(logs) > 0 {
 		bc.logsFeed.Send(logs)
+		log.Debug("d-f SetCanonical logsFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	}
 	bc.chainHeadFeed.Send(ChainHeadEvent{Block: head})
+	log.Debug("d-f SetCanonical chainHeadFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 
 	context := []interface{}{
 		"number", head.Number(),
@@ -2468,7 +2485,7 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 	if timestamp := time.Unix(int64(head.Time()), 0); time.Since(timestamp) > time.Minute {
 		context = append(context, []interface{}{"age", common.PrettyAge(timestamp)}...)
 	}
-	log.Info("Chain head was updated", context...)
+	log.Info("d-f Chain head was updated", context...)
 	return head.Hash(), nil
 }
 

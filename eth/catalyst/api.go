@@ -301,6 +301,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		}
 		return engine.STATUS_SYNCING, nil
 	}
+	log.Debug("d-f forkchoiceUpdateAttributes GetBlockByHash", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash)
+
 	// Block is known locally, just sanity check that the beacon client does not
 	// attempt to push us back to before the merge.
 	if block.Difficulty().BitLen() > 0 || block.NumberU64() == 0 {
@@ -333,6 +335,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		if latestValid, err := api.eth.BlockChain().SetCanonical(block); err != nil {
 			return engine.ForkChoiceResponse{PayloadStatus: engine.PayloadStatusV1{Status: engine.INVALID, LatestValidHash: &latestValid}}, err
 		}
+		log.Debug("d-f forkchoiceUpdateAttributes SetCanonical", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash)
 	} else if api.eth.BlockChain().CurrentBlock().Hash() == update.HeadBlockHash {
 		// If the specified head matches with our local head, do nothing and keep
 		// generating the payload. It's a special corner case that a few slots are
@@ -446,7 +449,7 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		return valid(&id), nil
 	}
 	forkchoiceUpdateHeadsTimer.UpdateSince(start)
-	log.Debug("forkchoiceUpdateAttributesTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash)
+	log.Debug("d-f forkchoiceUpdateAttributesTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", update.HeadBlockHash, "safe", update.SafeBlockHash, "final", update.FinalizedBlockHash)
 	return valid(nil), nil
 }
 
