@@ -127,10 +127,9 @@ func (indexer *txIndexer) loop(chain *BlockChain) {
 
 	// Listening to chain events and manipulate the transaction indexes.
 	var (
-		stop     chan struct{}                       // Non-nil if background routine is active.
-		done     chan struct{}                       // Non-nil if background routine is active.
-		lastHead uint64                              // The latest announced chain head (whose tx indexes are assumed created)
-		lastTail = rawdb.ReadTxIndexTail(indexer.db) // The oldest indexed block, nil means nothing indexed
+		stop     chan struct{} // Non-nil if background routine is active.
+		done     chan struct{} // Non-nil if background routine is active.
+		lastHead uint64        // The latest announced chain head (whose tx indexes are assumed created)
 
 		headCh = make(chan ChainHeadEvent, 10)
 		sub    = chain.SubscribeChainHeadEvent(headCh)
@@ -157,9 +156,8 @@ func (indexer *txIndexer) loop(chain *BlockChain) {
 		case <-done:
 			stop = nil
 			done = nil
-			lastTail = rawdb.ReadTxIndexTail(indexer.db)
 		case ch := <-indexer.progress:
-			ch <- indexer.report(lastHead, lastTail)
+			ch <- indexer.report(lastHead)
 		case ch := <-indexer.term:
 			if stop != nil {
 				close(stop)
@@ -175,7 +173,11 @@ func (indexer *txIndexer) loop(chain *BlockChain) {
 }
 
 // report returns the tx indexing progress.
-func (indexer *txIndexer) report(head uint64, tail *uint64) TxIndexProgress {
+func (indexer *txIndexer) report(head uint64) TxIndexProgress {
+	var (
+		remaining uint64
+		tail      = rawdb.ReadTxIndexTail(indexer.db)
+	)
 	total := indexer.limit
 	if indexer.limit == 0 || total > head {
 		total = head + 1 // genesis included
@@ -186,7 +188,6 @@ func (indexer *txIndexer) report(head uint64, tail *uint64) TxIndexProgress {
 	}
 	// The value of indexed might be larger than total if some blocks need
 	// to be unindexed, avoiding a negative remaining.
-	var remaining uint64
 	if indexed < total {
 		remaining = total - indexed
 	}
