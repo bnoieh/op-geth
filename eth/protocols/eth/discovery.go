@@ -17,8 +17,11 @@
 package eth
 
 import (
+	"time"
+
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -47,7 +50,10 @@ func StartENRUpdater(chain *core.BlockChain, ln *enode.LocalNode) {
 		for {
 			select {
 			case <-newHead:
+				start := time.Now()
 				ln.Set(currentENREntry(chain))
+				log.Info("d-f StartENRUpdater", "duration", time.Since(start))
+
 			case <-sub.Err():
 				// Would be nice to sync with Stop, but there is no
 				// good way to do that.

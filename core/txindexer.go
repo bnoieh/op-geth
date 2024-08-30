@@ -19,6 +19,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -132,7 +133,7 @@ func (indexer *txIndexer) loop(chain *BlockChain) {
 		lastHead uint64                              // The latest announced chain head (whose tx indexes are assumed created)
 		lastTail = rawdb.ReadTxIndexTail(indexer.db) // The oldest indexed block, nil means nothing indexed
 
-		headCh = make(chan ChainHeadEvent)
+		headCh = make(chan ChainHeadEvent, 10)
 		sub    = chain.SubscribeChainHeadEvent(headCh)
 	)
 	defer sub.Unsubscribe()
@@ -148,18 +149,26 @@ func (indexer *txIndexer) loop(chain *BlockChain) {
 	for {
 		select {
 		case head := <-headCh:
+			start := time.Now()
 			if done == nil {
 				stop = make(chan struct{})
 				done = make(chan struct{})
 				go indexer.run(rawdb.ReadTxIndexTail(indexer.db), head.Block.NumberU64(), stop, done)
 			}
 			lastHead = head.Block.NumberU64()
+			log.Info("d-f txIndexer head", "duration", time.Since(start))
 		case <-done:
+			start := time.Now()
 			stop = nil
 			done = nil
 			lastTail = rawdb.ReadTxIndexTail(indexer.db)
+			log.Info("d-f txIndexer done", "duration", time.Since(start))
+
 		case ch := <-indexer.progress:
+			start := time.Now()
 			ch <- indexer.report(lastHead, lastTail)
+			log.Info("d-f txIndexer ch", "duration", time.Since(start))
+
 		case ch := <-indexer.term:
 			if stop != nil {
 				close(stop)

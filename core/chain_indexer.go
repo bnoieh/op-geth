@@ -216,6 +216,8 @@ func (c *ChainIndexer) eventLoop(currentHeader *types.Header, events chan ChainH
 			return
 
 		case ev, ok := <-events:
+			start := time.Now()
+
 			// Received a new event, ensure it's not nil (closing) and update
 			if !ok {
 				errc := <-c.quit
@@ -236,6 +238,8 @@ func (c *ChainIndexer) eventLoop(currentHeader *types.Header, events chan ChainH
 			c.newHead(header.Number.Uint64(), false)
 
 			prevHeader, prevHash = header, header.Hash()
+			log.Info("d-f chainIndexer ch", "duration", time.Since(start))
+
 		}
 	}
 }

@@ -20,6 +20,9 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"time"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var errBadChannel = errors.New("event: Subscribe argument does not have sendable channel type")
@@ -118,6 +121,7 @@ func (f *Feed) remove(sub *feedSub) {
 // Send delivers to all subscribed channels simultaneously.
 // It returns the number of subscribers that the value was sent to.
 func (f *Feed) Send(value interface{}) (nsent int) {
+	start := time.Now()
 	rvalue := reflect.ValueOf(value)
 
 	f.once.Do(func() { f.init(rvalue.Type()) })
@@ -126,12 +130,14 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 	}
 
 	<-f.sendLock
+	log.Info("d-f Send sendLock", "duration", time.Since(start))
 
 	// Add new cases from the inbox after taking the send lock.
 	f.mu.Lock()
 	f.sendCases = append(f.sendCases, f.inbox...)
 	f.inbox = nil
 	f.mu.Unlock()
+	log.Info("d-f Send append", "duration", time.Since(start), "sendCases", len(f.sendCases))
 
 	// Set the sent value on all channels.
 	for i := firstSubSendCase; i < len(f.sendCases); i++ {
@@ -142,6 +148,7 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 	// of sendCases. When a send succeeds, the corresponding case moves to the end of
 	// 'cases' and it shrinks by one element.
 	cases := f.sendCases
+	start = time.Now()
 	for {
 		// Fast path: try sending without blocking before adding to the select set.
 		// This should usually succeed if subscribers are fast enough and have free
@@ -153,7 +160,9 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 				i--
 			}
 		}
+		log.Info("d-f Send TrySend", "duration", time.Since(start), "n", nsent)
 		if len(cases) == firstSubSendCase {
+			log.Info("d-f Send break", "duration", time.Since(start), "n", nsent)
 			break
 		}
 		// Select on all the receivers, waiting for them to unblock.
@@ -169,13 +178,16 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 			cases = cases.deactivate(chosen)
 			nsent++
 		}
+		log.Info("d-f Send Send", "duration", time.Since(start), "n", nsent)
 	}
 
+	log.Info("d-f Send For", "duration", time.Since(start), "n", nsent)
 	// Forget about the sent value and hand off the send lock.
 	for i := firstSubSendCase; i < len(f.sendCases); i++ {
 		f.sendCases[i].Send = reflect.Value{}
 	}
 	f.sendLock <- struct{}{}
+	log.Info("d-f Send return", "duration", time.Since(start), "n", nsent)
 	return nsent
 }
 

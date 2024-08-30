@@ -997,13 +997,13 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	rawdb.WriteCanonicalHash(batch, block.Hash(), block.NumberU64())
 	rawdb.WriteTxLookupEntriesByBlock(batch, block)
 	rawdb.WriteHeadBlockHash(batch, block.Hash())
-	log.Debug("d-f writeHeadBlock write", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Debug("writeHeadBlock write", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 
 	// Flush the whole batch into the disk, exit the node if failed
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to update chain indexes and markers", "err", err)
 	}
-	log.Debug("d-f writeHeadBlock batch", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Debug("writeHeadBlock batch", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 
 	// Update all in-memory chain markers in the last step
 	bc.hc.SetCurrentHeader(block.Header())
@@ -2226,12 +2226,12 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 		blobGasPrice = eip4844.CalcBlobFee(*excessBlobGas)
 	}
 	receipts := rawdb.ReadRawReceipts(bc.db, b.Hash(), b.NumberU64())
-	log.Debug("d-f collectLogs ReadRawReceipts", "duration", common.PrettyDuration(time.Since(start)), "hash", b.Hash())
+	log.Debug("collectLogs ReadRawReceipts", "duration", common.PrettyDuration(time.Since(start)), "hash", b.Hash())
 
 	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), blobGasPrice, b.Transactions()); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
-	log.Debug("d-f collectLogs DeriveFields", "duration", common.PrettyDuration(time.Since(start)), "hash", b.Hash())
+	log.Debug("collectLogs DeriveFields", "duration", common.PrettyDuration(time.Since(start)), "hash", b.Hash())
 	var logs []*types.Log
 	for _, receipt := range receipts {
 		for _, log := range receipt.Logs {
@@ -2451,7 +2451,7 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 		}
 		log.Info("Recovered head state", "number", head.Number(), "hash", head.Hash())
 	}
-	log.Debug("d-f SetCanonical 1", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+	log.Debug("SetCanonical 1", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	// Run the reorg if necessary and set the given block as new head.
 	start = time.Now()
 	if head.ParentHash() != bc.CurrentBlock().Hash() {
@@ -2459,19 +2459,19 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 			return common.Hash{}, err
 		}
 	}
-	log.Debug("d-f SetCanonical reorg", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+	log.Debug("SetCanonical reorg", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	bc.writeHeadBlock(head)
-	log.Debug("d-f SetCanonical writeHeadBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+	log.Debug("SetCanonical writeHeadBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 
 	// Emit events
 	logs := bc.collectLogs(head, false)
-	log.Debug("d-f SetCanonical collectLogs", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+	log.Debug("SetCanonical collectLogs", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 
 	bc.chainFeed.Send(ChainEvent{Block: head, Hash: head.Hash(), Logs: logs})
-	log.Debug("d-f SetCanonical chainFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+	log.Debug("SetCanonical chainFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	if len(logs) > 0 {
 		bc.logsFeed.Send(logs)
-		log.Debug("d-f SetCanonical logsFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
+		log.Debug("SetCanonical logsFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())
 	}
 	bc.chainHeadFeed.Send(ChainHeadEvent{Block: head})
 	log.Debug("d-f SetCanonical chainHeadFeed", "duration", common.PrettyDuration(time.Since(start)), "hash", head.Hash())

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -212,6 +213,7 @@ func (p *TxPool) loop(head *types.Header, chain BlockChain) {
 		}
 	}()
 	var errc chan error
+	rTime := time.Now()
 	for errc == nil {
 		// Something interesting might have happened, run a reset if there is
 		// one needed but none is running. The resetter will run on its own
@@ -245,9 +247,12 @@ func (p *TxPool) loop(head *types.Header, chain BlockChain) {
 		select {
 		case event := <-newHeadCh:
 			// Chain moved forward, store the head for later consumption
+			log.Info("d-f txpool receive sub", "duration", time.Since(rTime))
+			rTime = time.Now()
 			newHead = event.Block.Header()
 
 		case head := <-resetDone:
+			start := time.Now()
 			// Previous reset finished, update the old head and allow a new reset
 			oldHead = head
 			<-resetBusy
@@ -259,6 +264,7 @@ func (p *TxPool) loop(head *types.Header, chain BlockChain) {
 				resetWaiter <- nil
 				resetWaiter = nil
 			}
+			log.Info("d-f txpool resetDone", "duration", time.Since(start))
 
 		case errc = <-p.quit:
 			// Termination requested, break out on the next loop round
