@@ -2457,7 +2457,9 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 	if len(logs) > 0 {
 		bc.logsFeed.Send(logs)
 	}
+	start2 := time.Now()
 	bc.chainHeadFeed.Send(ChainHeadEvent{Block: head})
+	log.Debug("d-p chainHeadFeed.Send", "duration", time.Since(start2), "hash", head.Hash())
 
 	context := []interface{}{
 		"number", head.Number(),
