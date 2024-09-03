@@ -184,7 +184,7 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 			// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, Rn]]))
 			start := time.Now()
 			receiptSha := types.DeriveSha(receipts, trie.NewStackTrie(nil))
-			log.Info("debug-perf-prefix validateState:deriveSha", "duration", time.Since(start), "hash", block.Hash())
+			log.Error("debug-perf-prefix validateState:deriveSha", "duration", time.Since(start), "hash", block.Hash())
 			if receiptSha != header.ReceiptHash {
 				return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
 			}

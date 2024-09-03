@@ -882,7 +882,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	commitTxTimer := time.Duration(0)
 	shiftTxTimer := time.Duration(0)
 	defer func() {
-		log.Info("debug-perf-prefix commitTransactions", "duration", time.Since(start), "hash", env.header.Hash(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "sender", senderTimer, "validateTX", env.tcount, "nonceTL", txCount)
+		log.Error("debug-perf-prefix commitTransactions", "duration", time.Since(start), "hash", env.header.Hash(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "sender", senderTimer, "validateTX", env.tcount, "nonceTL", txCount)
 	}()
 
 	for {
@@ -906,7 +906,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 		ltx := txs.Peek()
 
 		if ltx == nil {
-			log.Info("debug-perf-prefix txpool empty",  "hash", env.header.Hash())
+			log.Error("debug-perf-prefix txpool empty",  "hash", env.header.Hash(), "count", env.tcount)
 			break
 		}
 		txTotalMeter.Mark(1)
@@ -1149,7 +1149,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	start := time.Now()
 	pending := w.eth.TxPool().Pending(true)
 	packFromTxpoolTimer.UpdateSince(start)
-	log.Info("debug-perf-prefix packFromTxpoolTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash(), "txs", len(pending))
+	log.Error("debug-perf-prefix packFromTxpoolTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash(), "txs", len(pending))
 
 	// Split the pending transactions into locals and remotes.
 	localTxs, remoteTxs := make(map[common.Address][]*txpool.LazyTransaction), pending
@@ -1172,7 +1172,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	}
 	if len(remoteTxs) > 0 {
 		txs := newTransactionsByPriceAndNonce(env.signer, remoteTxs, env.header.BaseFee)
-		log.Info("debug-perf-prefix newTransactionsByPriceAndNonce", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash())
+		log.Error("debug-perf-prefix newTransactionsByPriceAndNonce", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash())
 		if err := w.commitTransactions(env, txs, interrupt); err != nil {
 			return err
 		}
@@ -1274,13 +1274,13 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 			log.Info("Block building got interrupted by payload resolution", "parentHash", genParams.parentHash)
 			isBuildBlockInterruptCounter.Inc(1)
 		}
-		log.Info("debug-perf-prefix fillTransactions", "duration", common.PrettyDuration(time.Since(start)), "parentHash", genParams.parentHash)
+		log.Error("debug-perf-prefix fillTransactions", "duration", common.PrettyDuration(time.Since(start)), "parentHash", genParams.parentHash)
 	}
 	if intr := genParams.interrupt; intr != nil && genParams.isUpdate && intr.Load() != commitInterruptNone {
 		return &newPayloadResult{err: errInterruptedUpdate}
 	}
 
-	log.Info("debug-perf-prefix inner exec timer", "parent", genParams.parentHash, "evmExec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "newEvm", core.DebugInnerNewEvmDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "innerAT", core.DebugInnerApplyTxDuration, "innerat0", core.DebugInnerapplyTx0Duration, "innnerat", core.DebugInnerapplyTxDuration, "innnerTDB", core.DebugInnerTDBDuration, "innertdb0", core.DebugInnertdb0Duration, "innertdb", core.DebugInnertdbDuration, "innerrevert", core.DebugInnerRervertDuration, "workapply", DebugWorkApplyDuration, "workrevert", DebugWorkRevertDuration)
+	log.Error("debug-perf-prefix inner exec timer", "parent", genParams.parentHash, "evmExec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "newEvm", core.DebugInnerNewEvmDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "innerAT", core.DebugInnerApplyTxDuration, "innerat0", core.DebugInnerapplyTx0Duration, "innnerat", core.DebugInnerapplyTxDuration, "innnerTDB", core.DebugInnerTDBDuration, "innertdb0", core.DebugInnertdb0Duration, "innertdb", core.DebugInnertdbDuration, "innerrevert", core.DebugInnerRervertDuration, "workapply", DebugWorkApplyDuration, "workrevert", DebugWorkRevertDuration)
 
 	start = time.Now()
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)
@@ -1292,7 +1292,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	}
 
 	assembleBlockTimer.UpdateSince(start)
-	log.Info("debug-perf-prefix assembleBlockTimer (validation)", "duration", common.PrettyDuration(time.Since(start)), "parentHash", genParams.parentHash)
+	log.Error("debug-perf-prefix assembleBlockTimer (validation)", "duration", common.PrettyDuration(time.Since(start)), "parentHash", genParams.parentHash)
 
 	accountReadTimer.Update(work.state.AccountReads)                 // Account reads are complete(in commit txs)
 	storageReadTimer.Update(work.state.StorageReads)                 // Storage reads are complete(in commit txs)
@@ -1305,7 +1305,7 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 
 	innerExecutionTimer.Update(core.DebugInnerExecutionDuration)
 
-	log.Info("debug-perf-prefix build payload statedb metrics", "parentHash", genParams.parentHash, "accountReads", common.PrettyDuration(work.state.AccountReads), "storageReads", common.PrettyDuration(work.state.StorageReads), "snapshotAccountReads", common.PrettyDuration(work.state.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(work.state.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(work.state.AccountUpdates), "storageUpdates", common.PrettyDuration(work.state.StorageUpdates), "accountHashes", common.PrettyDuration(work.state.AccountHashes), "storageHashes", common.PrettyDuration(work.state.StorageHashes), "updateStoragesRoot", work.state.UpdateStoragesRootTimer, "updateAccountRoot", work.state.UpdateAccountRootTimer)
+	log.Error("debug-perf-prefix build payload statedb metrics", "parentHash", genParams.parentHash, "accountReads", common.PrettyDuration(work.state.AccountReads), "storageReads", common.PrettyDuration(work.state.StorageReads), "snapshotAccountReads", common.PrettyDuration(work.state.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(work.state.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(work.state.AccountUpdates), "storageUpdates", common.PrettyDuration(work.state.StorageUpdates), "accountHashes", common.PrettyDuration(work.state.AccountHashes), "storageHashes", common.PrettyDuration(work.state.StorageHashes), "updateStoragesRoot", work.state.UpdateStoragesRootTimer, "updateAccountRoot", work.state.UpdateAccountRootTimer)
 
 	return &newPayloadResult{
 		block:    block,

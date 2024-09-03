@@ -263,7 +263,7 @@ func (db *Database) Update(root common.Hash, parentRoot common.Hash, block uint6
 	if err := db.tree.add(root, parentRoot, block, nodes, states); err != nil {
 		return err
 	}
-	log.Info("debug-perf-prefix pathdbCommit:add", "duration", time.Since(start), "block", block)
+	log.Error("debug-perf-prefix pathdbCommit:add", "duration", time.Since(start), "block", block)
 	db.capLock.Lock()
 	gopool.Submit(func() {
 		defer db.capLock.Unlock()
@@ -274,7 +274,7 @@ func (db *Database) Update(root common.Hash, parentRoot common.Hash, block uint6
 		// - head-128 layer(disk layer) is paired with HEAD-128 state
 		start := time.Now()
 		err := db.tree.cap(root, maxDiffLayers)
-		log.Info("debug-perf-prefix pathdbCommit:cap async", "duration", time.Since(start), "block", block)
+		log.Error("debug-perf-prefix pathdbCommit:cap async", "duration", time.Since(start), "block", block)
 		if err != nil {
 			log.Crit("failed to cap layer tree", "error", err)
 		}

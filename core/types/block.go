@@ -233,14 +233,14 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 		b.transactions = make(Transactions, len(txs))
 		copy(b.transactions, txs)
 	}
-	log.Info("debug-perf-prefix assemble:DeriveSha", "tx hash duration", time.Since(start))
+	log.Error("debug-perf-prefix assemble:DeriveSha", "tx hash duration", time.Since(start))
 
 	start = time.Now()
 	if len(receipts) == 0 {
 		b.header.ReceiptHash = EmptyReceiptsHash
 	} else {
 		b.header.ReceiptHash = DeriveSha(Receipts(receipts), hasher)
-		log.Info("debug-perf-prefix assemble:DeriveSha", "receipt hash duration", time.Since(start))
+		log.Error("debug-perf-prefix assemble:DeriveSha", "receipt hash duration", time.Since(start))
 		b.header.Bloom = CreateBloom(receipts)
 		log.Info("new block timer", "bloom duration", time.Since(start))
 	}

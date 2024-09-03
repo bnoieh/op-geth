@@ -1333,7 +1333,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			if metrics.EnabledExpensive {
 				defer func(start time.Time) {
 					s.TrieCommits += time.Since(start)
-					log.Info("debug-perf-prefix commitTrie", "duration", time.Since(start), "block", block)
+					log.Error("debug-perf-prefix commitTrie", "duration", time.Since(start), "block", block)
 				}(time.Now())
 			}
 			if s.fullProcessed {
@@ -1346,7 +1346,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			var err error
 			// Handle all state deletions first
 			incomplete, err = s.handleDestruction(nodes)
-			log.Info("debug-perf-prefix commitTrie:destruction", "duration", time.Since(begin), "block", block)
+			log.Error("debug-perf-prefix commitTrie:destruction", "duration", time.Since(begin), "block", block)
 			if err != nil {
 				return err
 			}
@@ -1414,7 +1414,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 				}
 			}
 			close(finishCh)
-			log.Info("debug-perf-prefix commitTrie:storageCommit3", "duration", time.Since(begin), "block", block)
+			log.Error("debug-perf-prefix commitTrie:storageCommit3", "duration", time.Since(begin), "block", block)
 
 			if !s.noTrie {
 				var start time.Time
@@ -1422,7 +1422,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					start = time.Now()
 				}
 				root, set, err := s.trie.Commit(true)
-				log.Info("debug-perf-prefix commitTrie:accountCommit1", "duration", time.Since(start), "block", block)
+				log.Error("debug-perf-prefix commitTrie:accountCommit1", "duration", time.Since(start), "block", block)
 
 				if err != nil {
 					return err
@@ -1453,7 +1453,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					s.originalRoot = root
 					if metrics.EnabledExpensive {
 						s.TrieDBCommits += time.Since(start)
-						log.Info("debug-perf-prefix commitTrie:dbCommit", "duration", time.Since(start), "block", block)
+						log.Error("debug-perf-prefix commitTrie:dbCommit", "duration", time.Since(start), "block", block)
 					}
 					if s.onCommit != nil {
 						s.onCommit(set)
@@ -1503,7 +1503,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 				if parent := s.snap.Root(); parent != s.expectedRoot {
 					start := time.Now()
 					err := s.snaps.Update(s.expectedRoot, parent, s.convertAccountSet(s.stateObjectsDestruct), s.accounts, s.storages)
-					log.Info("debug-perf-prefix commitSnapshot:update", "duration", time.Since(start), "block", block)
+					log.Error("debug-perf-prefix commitSnapshot:update", "duration", time.Since(start), "block", block)
 					if err != nil {
 						log.Warn("Failed to update snapshot tree", "from", parent, "to", s.expectedRoot, "err", err)
 					}
