@@ -1517,7 +1517,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 						if err := s.snaps.Cap(s.expectedRoot, 128); err != nil {
 							log.Warn("Failed to cap snapshot tree", "root", s.expectedRoot, "layers", 128, "err", err)
 						}
-						log.Info("debug-db-prefix commitSnapshot:cap async", "duration", time.Since(start), "block", block)
+						log.Error("debug-db-prefix commitSnapshot:cap async", "duration", time.Since(start), "block", block)
 					}()
 				}
 			}

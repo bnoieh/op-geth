@@ -532,7 +532,7 @@ func writeHistory(freezer *rawdb.ResettableFreezer, dl *diffLayer) error {
 	historyDataBytesMeter.Mark(int64(dataSize))
 	historyIndexBytesMeter.Mark(int64(indexSize))
 	historyBuildTimeMeter.UpdateSince(start)
-	log.Info("debug-db-prefix Stored state history", "id", dl.stateID(), "block", dl.block, "data", dataSize, "index", indexSize, "elapsed", common.PrettyDuration(time.Since(start)))
+	log.Error("debug-db-prefix Stored state history", "id", dl.stateID(), "block", dl.block, "data", dataSize, "index", indexSize, "elapsed", common.PrettyDuration(time.Since(start)))
 
 	return nil
 }
@@ -642,7 +642,7 @@ func truncateFromTail(db ethdb.Batcher, freezer *rawdb.ResettableFreezer, ntail 
 	if err := batch.Write(); err != nil {
 		return 0, err
 	}
-	log.Info("debug-db-prefix pathdbCommit:truncateHistory", "duration", time.Since(start), "blobs", len(blobs))
+	log.Error("debug-db-prefix pathdbCommit:truncateHistory", "duration", time.Since(start), "blobs", len(blobs))
 	otail, err = freezer.TruncateTail(ntail)
 	if err != nil {
 		return 0, err
