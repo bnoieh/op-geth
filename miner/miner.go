@@ -46,6 +46,13 @@ var (
 	assembleBlockTimer = metrics.NewRegisteredTimer("miner/assemble/block", nil)
 	buildBlockTimer = metrics.NewRegisteredTimer("miner/build/block", nil)
 
+	ShiftTxTimer = metrics.NewRegisteredTimer("miner/shift/tx", nil)
+	CommitTxTimer = metrics.NewRegisteredTimer("miner/commit/tx", nil)
+	STPrechekTimer = metrics.NewRegisteredTimer("miner/st/precheck", nil)
+	STEvmCallTimer = metrics.NewRegisteredTimer("miner/st/evmCall", nil)
+	AssembleAccountTimer = metrics.NewRegisteredTimer("miner/assemble/account", nil)
+	AssembleStorageTimer = metrics.NewRegisteredTimer("miner/assemble/storage", nil)
+
 	accountReadTimer   = metrics.NewRegisteredTimer("miner/account/reads", nil)
 	accountHashTimer   = metrics.NewRegisteredTimer("miner/account/hashes", nil)
 	accountUpdateTimer = metrics.NewRegisteredTimer("miner/account/updates", nil)

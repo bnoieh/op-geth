@@ -874,7 +874,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	}
 	var coalescedLogs []*types.Log
 
-	blockTxLimit := 12000
+	blockTxLimit := 8000
 	txCount := 0
 	start := time.Now()
 	atomicTimer := time.Duration(0)
@@ -883,6 +883,8 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	shiftTxTimer := time.Duration(0)
 	defer func() {
 		log.Error("debug-perf-prefix commitTransactions", "duration", time.Since(start), "hash", env.header.Hash(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "sender", senderTimer, "validateTX", env.tcount, "nonceTL", txCount)
+		ShiftTxTimer.Update(shiftTxTimer)
+		CommitTxTimer.Update(commitTxTimer)
 	}()
 
 	for {
@@ -1282,6 +1284,9 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 
 	log.Error("debug-perf-prefix inner exec timer", "parent", genParams.parentHash, "evmExec", core.DebugInnerExecutionDuration, "apply msg", core.DebugInnerApplyMsgDuration, "log", core.DebugInnerLogDuration, "fee", core.DebugInnerFeeDuration, "finalise", core.DebugInnerFnaliseDuration, "newEvm", core.DebugInnerNewEvmDuration, "precheck", core.DebugInnerPrecheckDuration, "prepare", core.DebugInnerPrepareDuration, "txToMsg", core.DebugInnerTxToMsgDuration, "innerAT", core.DebugInnerApplyTxDuration, "innerat0", core.DebugInnerapplyTx0Duration, "innnerat", core.DebugInnerapplyTxDuration, "innnerTDB", core.DebugInnerTDBDuration, "innertdb0", core.DebugInnertdb0Duration, "innertdb", core.DebugInnertdbDuration, "innerrevert", core.DebugInnerRervertDuration, "workapply", DebugWorkApplyDuration, "workrevert", DebugWorkRevertDuration)
 
+	STEvmCallTimer.Update(core.DebugInnerExecutionDuration)
+	STPrechekTimer.Update(core.DebugInnerPrecheckDuration)
+
 	start = time.Now()
 	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)
 	if err != nil {
@@ -1304,6 +1309,8 @@ func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
 	storageHashTimer.Update(work.state.StorageHashes)                // Storage hashes are complete(in FinalizeAndAssemble)
 
 	innerExecutionTimer.Update(core.DebugInnerExecutionDuration)
+	AssembleAccountTimer.Update(work.state.UpdateAccountRootTimer)
+	AssembleStorageTimer.Update(work.state.UpdateStoragesRootTimer)
 
 	log.Error("debug-perf-prefix build payload statedb metrics", "parentHash", genParams.parentHash, "accountReads", common.PrettyDuration(work.state.AccountReads), "storageReads", common.PrettyDuration(work.state.StorageReads), "snapshotAccountReads", common.PrettyDuration(work.state.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(work.state.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(work.state.AccountUpdates), "storageUpdates", common.PrettyDuration(work.state.StorageUpdates), "accountHashes", common.PrettyDuration(work.state.AccountHashes), "storageHashes", common.PrettyDuration(work.state.StorageHashes), "updateStoragesRoot", work.state.UpdateStoragesRootTimer, "updateAccountRoot", work.state.UpdateAccountRootTimer)
 

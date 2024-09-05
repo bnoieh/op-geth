@@ -1415,6 +1415,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			}
 			close(finishCh)
 			log.Error("debug-perf-prefix commitTrie:storageCommit3", "duration", time.Since(begin), "block", block)
+			StorageTrieCommitTimer.UpdateSince(begin)
 
 			if !s.noTrie {
 				var start time.Time
@@ -1437,6 +1438,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 				if metrics.EnabledExpensive {
 					s.AccountCommits += time.Since(start)
 					log.Info("stateDBCommitTimer:accountCommit2", "duration", time.Since(start), "block", block)
+					AccountTrieCommitTimer.UpdateSince(start)
 				}
 
 				origin := s.originalRoot
