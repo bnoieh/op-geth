@@ -874,7 +874,7 @@ func (w *worker) commitTransactions(env *environment, txs *transactionsByPriceAn
 	}
 	var coalescedLogs []*types.Log
 
-	blockTxLimit := 8000
+	blockTxLimit := 2000
 	txCount := 0
 	start := time.Now()
 	atomicTimer := time.Duration(0)
