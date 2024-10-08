@@ -989,6 +989,7 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 //
 // Note, this function assumes that the `mu` mutex is held!
 func (bc *BlockChain) writeHeadBlock(block *types.Block) {
+	start := time.Now()
 	// Add the block to the canonical chain number scheme and mark as the head
 	batch := bc.db.NewBatch()
 	rawdb.WriteHeadHeaderHash(batch, block.Hash())
@@ -1001,6 +1002,7 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to update chain indexes and markers", "err", err)
 	}
+	log.Info("perf-trace perf-db-trace SetCanonical writeHeadBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 	// Update all in-memory chain markers in the last step
 	bc.hc.SetCurrentHeader(block.Header())
 
@@ -1464,7 +1466,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Crit("Failed to write block into disk", "err", err)
 		}
 		blockWriteExternalTimer.UpdateSince(start)
-		log.Debug("blockWriteExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+		log.Info("perf-trace perf-db-trace writeBlockWithState writeBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "len", len(receipts))
 	}()
 
 	// Commit all cached state changes into underlying memory database.
@@ -1475,7 +1477,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		return err
 	}
 	stateCommitExternalTimer.UpdateSince(start)
-	log.Debug("stateCommitExternalTimer", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Info("perf-trace writeBlockWithState stateCommit", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
 
 	// If node is running in path mode, skip explicit gc operation
 	// which is unnecessary in this mode.
@@ -1691,7 +1693,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 	// Peek the error for the first block to decide the directing import logic
 	it := newInsertIterator(chain, results, bc.validator)
+	traceStart := time.Now()
 	block, err := it.next()
+	log.Info("perf-trace InsertChain it.next", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash())
 
 	// Left-trim all the known blocks that don't need to build snapshot
 	if bc.skipBlock(err, it) {
@@ -1793,10 +1797,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	}()
 
 	defer func() {
-		DebugInnerExecutionDuration = 0
+		PerfTraceEvmExecutionDuration = 0
 	}()
 	for ; block != nil && err == nil || errors.Is(err, ErrKnownBlock); block, err = it.next() {
-		DebugInnerExecutionDuration = 0
+		PerfTraceEvmExecutionDuration = 0
 		// If the chain is terminating, stop processing blocks
 		if bc.insertStopped() {
 			log.Debug("Abort during block processing")
@@ -1927,9 +1931,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		blockExecutionTimer.Update(ptime)                             // The time spent on block execution
 		blockValidationTimer.Update(vtime)                            // The time spent on block validation
 
-		innerExecutionTimer.Update(DebugInnerExecutionDuration)
+		innerExecutionTimer.Update(PerfTraceEvmExecutionDuration)
 
-		log.Debug("New payload execution and validation metrics", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes))
+		log.Info("perf-trace insertChain after execution and validation", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes), "updateStoragesRoot", statedb.UpdateStoragesRootTimer, "updateAccountRoot", statedb.UpdateAccountRootTimer)
 
 		// Write the block to the chain and get the status.
 		var (
@@ -1957,7 +1961,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		blockWriteTimer.UpdateSince(wstart)
 		blockInsertTimer.UpdateSince(start)
 
-		log.Debug("New payload db write metrics", "hash", block.Hash(), "insert", common.PrettyDuration(time.Since(start)), "writeDB", common.PrettyDuration(time.Since(wstart)), "writeBlock", common.PrettyDuration(time.Since(wstart)), "accountCommit", common.PrettyDuration(statedb.AccountCommits), "storageCommit", common.PrettyDuration(statedb.StorageCommits), "snapshotCommits", common.PrettyDuration(statedb.SnapshotCommits), "triedbCommit", common.PrettyDuration(statedb.TrieDBCommits))
+		log.Info("perf-trace insertChain after writeBlockWithState", "hash", block.Hash(), "nubmer", block.Number().Uint64(), "insert", common.PrettyDuration(time.Since(start)), "commit", time.Since(wstart), "trieCommit", statedb.TrieCommits, "accountCommit", common.PrettyDuration(statedb.AccountCommits), "storageCommit", common.PrettyDuration(statedb.StorageCommits), "triedbCommit", common.PrettyDuration(statedb.TrieDBCommits), "snapshotCommits", common.PrettyDuration(statedb.SnapshotCommits), "codeCommit", statedb.CodeCommits)
 
 		// Report the import stats before returning the various results
 		stats.processed++
@@ -2215,6 +2219,7 @@ func (bc *BlockChain) recoverAncestors(block *types.Block) (common.Hash, error) 
 // collectLogs collects the logs that were generated or removed during
 // the processing of a block. These logs are later announced as deleted or reborn.
 func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
+	start := time.Now()
 	var blobGasPrice *big.Int
 	excessBlobGas := b.ExcessBlobGas()
 	if excessBlobGas != nil {
@@ -2233,6 +2238,7 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 			logs = append(logs, log)
 		}
 	}
+	log.Info("perf-trace setCanonical collectLogs", "duration", time.Since(start), "hash", b.Hash())
 	return logs
 }
 
@@ -2468,7 +2474,7 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 	if timestamp := time.Unix(int64(head.Time()), 0); time.Since(timestamp) > time.Minute {
 		context = append(context, []interface{}{"age", common.PrettyAge(timestamp)}...)
 	}
-	log.Info("Chain head was updated", context...)
+	log.Info("perf-trace Chain head was updated", context...)
 	return head.Hash(), nil
 }
 
