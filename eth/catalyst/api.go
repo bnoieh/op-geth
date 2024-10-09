@@ -715,6 +715,7 @@ func (api *ConsensusAPI) OpSealPayload(payloadID engine.PayloadID, update engine
 }
 
 func (api *ConsensusAPI) opSealPayload(payloadID engine.PayloadID, update engine.ForkchoiceStateV1) (engine.OpSealPayloadResponse, error) {
+	start := time.Now()
 	payloadEnvelope, err := api.getPayload(payloadID, false)
 	if err != nil {
 		log.Error("Seal payload error when get payload", "error", err, "payloadID", payloadID)
@@ -736,6 +737,7 @@ func (api *ConsensusAPI) opSealPayload(payloadID engine.PayloadID, update engine
 	}
 
 	log.Info("Seal payload succeed", "payloadStatus", updateResponse.PayloadStatus)
+	log.Info("perf-trace opSealPayload", "duration", common.PrettyDuration(time.Since(start)), "hash", payloadEnvelope.ExecutionPayload.BlockHash, "number", payloadEnvelope.ExecutionPayload.Number)
 	return engine.OpSealPayloadResponse{PayloadStatus: updateResponse.PayloadStatus, Payload: payloadEnvelope}, nil
 }
 
