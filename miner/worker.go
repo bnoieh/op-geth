@@ -27,8 +27,6 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 
-	mapset "github.com/deckarep/golang-set/v2"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
