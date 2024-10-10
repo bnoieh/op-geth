@@ -590,7 +590,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 	start := time.Now()
 	defer func() {
 		newPayloadTimer.UpdateSince(start)
-		log.Info("perf-trace newPayload", "duration", common.PrettyDuration(time.Since(start)), "hash", params.BlockHash, "parentHash", params.ParentHash)
+		log.Info("perf-trace newPayload", "duration", common.PrettyDuration(time.Since(start)), "hash", params.BlockHash, "number", params.Number)
 	}()
 
 	// The locking here is, strictly, not required. Without these locks, this can happen:
@@ -620,7 +620,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 			return api.invalid(err, nil), nil
 		}
 	}
-	log.Info("perf-trace newPayload ExecutableDataToBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", params.BlockHash, "parentHash", params.ParentHash)
+	log.Info("perf-trace newPayload ExecutableDataToBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", params.BlockHash, "number", params.Number)
 
 	// Stash away the last update to warn the user if the beacon client goes offline
 	api.lastNewPayloadLock.Lock()
@@ -696,7 +696,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 
 		return api.invalid(err, parent.Header()), nil
 	}
-	log.Info("perf-trace newPayload InsertBlockWithoutSetHead", "duration", common.PrettyDuration(time.Since(start1)), "hash", params.BlockHash, "parentHash", params.ParentHash)
+	log.Info("perf-trace newPayload InsertBlockWithoutSetHead", "duration", common.PrettyDuration(time.Since(start1)), "hash", params.BlockHash, "number", params.Number)
 	// We've accepted a valid payload from the beacon client. Mark the local
 	// chain transitions to notify other subsystems (e.g. downloader) of the
 	// behavioral change.
@@ -737,7 +737,7 @@ func (api *ConsensusAPI) opSealPayload(payloadID engine.PayloadID, update engine
 	}
 
 	log.Info("Seal payload succeed", "payloadStatus", updateResponse.PayloadStatus)
-	log.Info("perf-trace opSealPayload", "duration", common.PrettyDuration(time.Since(start)), "hash", payloadEnvelope.ExecutionPayload.BlockHash, "number", payloadEnvelope.ExecutionPayload.Number)
+	log.Info("perf-trace opSealPayload", "duration", common.PrettyDuration(time.Since(start)), "hash", payloadEnvelope.ExecutionPayload.BlockHash, "number", payloadEnvelope.ExecutionPayload.Number, "id", payloadID)
 	return engine.OpSealPayloadResponse{PayloadStatus: updateResponse.PayloadStatus, Payload: payloadEnvelope}, nil
 }
 

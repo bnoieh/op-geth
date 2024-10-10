@@ -405,7 +405,7 @@ func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 	go func() {
 		start := time.Now()
 		root := state.IntermediateRoot(true)
-		log.Info("perf-trace async FinalizeAndAssemble IntermediateRoot", "duration", time.Since(start), "hash", header.Hash())
+		log.Info("perf-trace async FinalizeAndAssemble IntermediateRoot", "duration", time.Since(start), "number", header.Number.Uint64())
 		rootCh <- root
 	}()
 

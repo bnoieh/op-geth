@@ -250,7 +250,7 @@ func NewBlock(header *Header, txs []*Transaction, uncles []*Header, receipts []*
 			b.uncles[i] = CopyHeader(uncles[i])
 		}
 	}
-	log.Info("perf-trace assembleAndFinalise NewBlock", "duration", time.Since(start))
+	log.Info("perf-trace assembleAndFinalise NewBlock", "duration", time.Since(start), "number", header.Number.Uint64())
 
 	return b
 }

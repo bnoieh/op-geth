@@ -911,7 +911,7 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 	commitTxTimer := time.Duration(0)
 	shiftTxTimer := time.Duration(0)
 	defer func() {
-		log.Info("perf-trace commitTransactions", "duration", time.Since(start), "hash", env.header.Hash(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "validateTx", env.tcount, "nonceTooLowTx", nonceTooLowTxCount)
+		log.Info("perf-trace commitTransactions", "duration", time.Since(start), "number", env.header.Number.Uint64(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "validateTx", env.tcount, "nonceTooLowTx", nonceTooLowTxCount)
 	}()
 
 	for {
@@ -954,7 +954,7 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 			}
 		}
 		if ltx == nil {
-			log.Info("perf-trace commitTransactions txpoolEmpty", "hash", env.header.Hash(), "count", env.tcount)
+			log.Info("perf-trace commitTransactions txpoolEmpty", "number", env.header.Number.Uint64(), "count", env.tcount)
 			break
 		}
 		txTotalMeter.Mark(1)
@@ -1213,7 +1213,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	pendingBlobTxs := w.eth.TxPool().Pending(filter)
 
 	packFromTxpoolTimer.UpdateSince(start)
-	log.Info("perf-trace fillTransactions packFromPool", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash(), "txs", len(pendingPlainTxs))
+	log.Info("perf-trace fillTransactions packFromPool", "duration", common.PrettyDuration(time.Since(start)), "number", env.header.Number.Uint64(), "txs", len(pendingPlainTxs))
 
 	// Split the pending transactions into locals and remotes.
 	localPlainTxs, remotePlainTxs := make(map[common.Address][]*txpool.LazyTransaction), pendingPlainTxs
@@ -1242,7 +1242,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	if len(remotePlainTxs) > 0 || len(remoteBlobTxs) > 0 {
 		plainTxs := newTransactionsByPriceAndNonce(env.signer, remotePlainTxs, env.header.BaseFee)
 		blobTxs := newTransactionsByPriceAndNonce(env.signer, remoteBlobTxs, env.header.BaseFee)
-		log.Info("perf-trace fillTransactions newTransactionsByPriceAndNonce", "duration", common.PrettyDuration(time.Since(start)), "hash", env.header.Hash())
+		log.Info("perf-trace fillTransactions newTransactionsByPriceAndNonce", "duration", common.PrettyDuration(time.Since(start)), "number", env.header.Number.Uint64())
 		if err := w.commitTransactions(env, plainTxs, blobTxs, interrupt); err != nil {
 			return err
 		}
