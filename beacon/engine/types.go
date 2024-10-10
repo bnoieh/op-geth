@@ -217,7 +217,7 @@ func decodeTransactions(enc [][]byte) ([]*types.Transaction, error) {
 func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (*types.Block, error) {
 	start := time.Now()
 	txs, err := decodeTransactions(params.Transactions)
-	log.Info("perf-trace ExecutableDataToBlock decodeTransactions", "duration", time.Since(start), "hash", params.BlockHash, "len", len(txs))
+	log.Info("perf-trace ExecutableDataToBlock decodeTransactions", "duration", time.Since(start), "number", params.Number, "len", len(txs))
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func ExecutableDataToBlock(params ExecutableData, versionedHashes []common.Hash,
 		BlobGasUsed:      params.BlobGasUsed,
 		ParentBeaconRoot: beaconRoot,
 	}
-	log.Info("perf-trace ExecutableDataToBlock DeriveSha", "duration", time.Since(start), "hash", params.BlockHash, "len", len(txs))
+	log.Info("perf-trace ExecutableDataToBlock DeriveSha", "duration", time.Since(start), "hash", params.BlockHash, "number", params.Number, "len", len(txs))
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */).WithWithdrawals(params.Withdrawals)
 	if block.Hash() != params.BlockHash {
 		return nil, fmt.Errorf("blockhash mismatch, want %x, got %x", params.BlockHash, block.Hash())

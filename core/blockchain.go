@@ -1002,7 +1002,7 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to update chain indexes and markers", "err", err)
 	}
-	log.Info("perf-trace perf-db-trace SetCanonical writeHeadBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Info("perf-trace perf-db-trace SetCanonical writeHeadBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "number", block.NumberU64())
 	// Update all in-memory chain markers in the last step
 	bc.hc.SetCurrentHeader(block.Header())
 
@@ -1436,6 +1436,9 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 // writeBlockWithState writes block, metadata and corresponding state data to the
 // database.
 func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, state *state.StateDB) error {
+	defer func(start time.Time) {
+		log.Info("perf-trace writeBlockWithState", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "number", block.NumberU64())
+	}(time.Now())
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
@@ -1466,7 +1469,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Crit("Failed to write block into disk", "err", err)
 		}
 		blockWriteExternalTimer.UpdateSince(start)
-		log.Info("perf-trace perf-db-trace writeBlockWithState writeBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "len", len(receipts))
+		log.Info("perf-trace perf-db-trace writeBlockWithState writeBlock", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "number", block.NumberU64(), "len", len(receipts))
 	}()
 
 	// Commit all cached state changes into underlying memory database.
@@ -1477,7 +1480,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		return err
 	}
 	stateCommitExternalTimer.UpdateSince(start)
-	log.Info("perf-trace writeBlockWithState stateCommit", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash())
+	log.Info("perf-trace writeBlockWithState stateCommit", "duration", common.PrettyDuration(time.Since(start)), "hash", block.Hash(), "number", block.NumberU64())
 
 	// If node is running in path mode, skip explicit gc operation
 	// which is unnecessary in this mode.
@@ -1695,7 +1698,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	it := newInsertIterator(chain, results, bc.validator)
 	traceStart := time.Now()
 	block, err := it.next()
-	log.Info("perf-trace InsertChain it.next", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash())
+	log.Info("perf-trace InsertChain it.next", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
 
 	// Left-trim all the known blocks that don't need to build snapshot
 	if bc.skipBlock(err, it) {
@@ -1933,7 +1936,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		innerExecutionTimer.Update(PerfTraceEvmExecutionDuration)
 
-		log.Info("perf-trace insertChain after execution and validation", "hash", block.Hash(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes), "updateStoragesRoot", statedb.UpdateStoragesRootTimer, "updateAccountRoot", statedb.UpdateAccountRootTimer)
+		log.Info("perf-trace insertChain after execution and validation", "hash", block.Hash(), "number", block.NumberU64(), "execution", common.PrettyDuration(ptime), "validation", common.PrettyDuration(vtime), "accountReads", common.PrettyDuration(statedb.AccountReads), "storageReads", common.PrettyDuration(statedb.StorageReads), "snapshotAccountReads", common.PrettyDuration(statedb.SnapshotAccountReads), "snapshotStorageReads", common.PrettyDuration(statedb.SnapshotStorageReads), "accountUpdates", common.PrettyDuration(statedb.AccountUpdates), "storageUpdates", common.PrettyDuration(statedb.StorageUpdates), "accountHashes", common.PrettyDuration(statedb.AccountHashes), "storageHashes", common.PrettyDuration(statedb.StorageHashes), "updateStoragesRoot", statedb.UpdateStoragesRootTimer, "updateAccountRoot", statedb.UpdateAccountRootTimer)
 
 		// Write the block to the chain and get the status.
 		var (
@@ -1943,18 +1946,25 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		if !setHead {
 			// Don't set the head, only insert the block
 			err = bc.writeBlockWithState(block, receipts, statedb)
+			log.Info("perf-trace insertChain debug0", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash(), "number", block.NumberU64())
 		} else {
 			status, err = bc.writeBlockAndSetHead(block, receipts, logs, statedb, false)
 		}
 		followupInterrupt.Store(true)
+		log.Info("perf-trace insertChain debug1", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
+
 		if err != nil {
 			return it.index, err
 		}
+		log.Info("perf-trace insertChain debug2", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
+
 		// Update the metrics touched during block commit
 		accountCommitTimer.Update(statedb.AccountCommits)   // Account commits are complete, we can mark them
 		storageCommitTimer.Update(statedb.StorageCommits)   // Storage commits are complete, we can mark them
 		snapshotCommitTimer.Update(statedb.SnapshotCommits) // Snapshot commits are complete, we can mark them
 		triedbCommitTimer.Update(statedb.TrieDBCommits)     // Trie database commits are complete, we can mark them
+		log.Info("perf-trace insertChain debug3", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
+
 		trieCommitTimer.Update(statedb.TrieCommits)
 		codeCommitTimer.Update(statedb.CodeCommits)
 
@@ -2238,7 +2248,7 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 			logs = append(logs, log)
 		}
 	}
-	log.Info("perf-trace setCanonical collectLogs", "duration", time.Since(start), "hash", b.Hash())
+	log.Info("perf-trace setCanonical collectLogs", "duration", time.Since(start), "hash", b.Hash(), "number", b.NumberU64())
 	return logs
 }
 
