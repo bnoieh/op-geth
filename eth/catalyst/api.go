@@ -710,11 +710,11 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 
 // OpSealPayload is combination API of payload sealing: getPayload, newPayload, forkchoiceUpdated.
 // TODO add API version
-func (api *ConsensusAPI) OpSealPayload(payloadID engine.PayloadID, update engine.ForkchoiceStateV1) (engine.OpSealPayloadResponse, error) {
-	return api.opSealPayload(payloadID, update)
+func (api *ConsensusAPI) OpSealPayload(payloadID engine.PayloadID, update engine.ForkchoiceStateV1, needPayload bool) (engine.OpSealPayloadResponse, error) {
+	return api.opSealPayload(payloadID, update, needPayload)
 }
 
-func (api *ConsensusAPI) opSealPayload(payloadID engine.PayloadID, update engine.ForkchoiceStateV1) (engine.OpSealPayloadResponse, error) {
+func (api *ConsensusAPI) opSealPayload(payloadID engine.PayloadID, update engine.ForkchoiceStateV1, needPayload bool) (engine.OpSealPayloadResponse, error) {
 	start := time.Now()
 	payloadEnvelope, err := api.getPayload(payloadID, false)
 	if err != nil {
@@ -738,7 +738,11 @@ func (api *ConsensusAPI) opSealPayload(payloadID engine.PayloadID, update engine
 
 	log.Info("Seal payload succeed", "payloadStatus", updateResponse.PayloadStatus)
 	log.Info("perf-trace opSealPayload", "duration", common.PrettyDuration(time.Since(start)), "hash", payloadEnvelope.ExecutionPayload.BlockHash, "number", payloadEnvelope.ExecutionPayload.Number, "id", payloadID)
-	return engine.OpSealPayloadResponse{PayloadStatus: updateResponse.PayloadStatus, Payload: payloadEnvelope}, nil
+	if needPayload {
+		return engine.OpSealPayloadResponse{PayloadStatus: updateResponse.PayloadStatus, Payload: payloadEnvelope}, nil
+	} else {
+		return engine.OpSealPayloadResponse{PayloadStatus: updateResponse.PayloadStatus}, nil
+	}
 }
 
 // delayPayloadImport stashes the given block away for import at a later time,
