@@ -1287,6 +1287,7 @@ func (s *StateDB) handleDestruction(nodes *trienode.MergedNodeSet) (map[common.A
 // The associated block number of the state transition is also provided
 // for more chain context.
 func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, error) {
+	trace0 := time.Now()
 	// Short circuit in case any database failure occurred earlier.
 	if s.dbErr != nil {
 		s.StopPrefetcher()
@@ -1509,6 +1510,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			return nil
 		},
 	}
+	log.Info("perf-trace Commit debug0", "duration", time.Since(trace0), "block", block)
 	defer s.StopPrefetcher()
 	commitRes := make(chan error, len(commitFuncs))
 	for _, f := range commitFuncs {
@@ -1524,6 +1526,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			return common.Hash{}, r
 		}
 	}
+	log.Info("perf-trace Commit debug1", "duration", time.Since(trace0), "block", block)
 
 	root := s.stateRoot
 	s.snap = nil
@@ -1537,6 +1540,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 	s.storagesOrigin = make(map[common.Address]map[common.Hash][]byte)
 	s.stateObjectsDirty = make(map[common.Address]struct{})
 	s.stateObjectsDestruct = make(map[common.Address]*types.StateAccount)
+	log.Info("perf-trace Commit debug2", "duration", time.Since(trace0), "block", block)
 	return root, nil
 }
 
