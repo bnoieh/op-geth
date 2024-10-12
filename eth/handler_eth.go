@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"runtime"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -31,8 +32,8 @@ import (
 )
 
 // TxQueueSize is the size of the transaction queue used to enqueue transactions
-const (
-	TxQueueSize = 16
+var (
+	TxQueueSize = runtime.NumCPU()
 )
 
 // enqueueTx is a channel to enqueue transactions in parallel.
