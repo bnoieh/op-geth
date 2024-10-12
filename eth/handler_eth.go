@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"runtime"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,12 +28,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/fetcher"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // TxQueueSize is the size of the transaction queue used to enqueue transactions
-const (
-	TxQueueSize = 16
+var (
+	TxQueueSize = runtime.NumCPU()
 )
 
 // enqueueTx is a channel to enqueue transactions in parallel.
@@ -40,6 +42,7 @@ const (
 var enqueueTx = make(chan func(), TxQueueSize)
 
 func init() {
+	log.Info("P2P euqneue parallel thread number", "threadNum", TxQueueSize)
 	// run the transaction enqueuing loop
 	for i := 0; i < TxQueueSize; i++ {
 		go func() {
