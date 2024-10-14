@@ -290,6 +290,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = stack.ResolvePath(config.TxPool.Journal)
 	}
+	log.Info("P2P euqneue parallel thread number", "threadNum", TxQueueSize)
 	legacyPool := legacypool.New(config.TxPool, eth.blockchain)
 
 	txPools := []txpool.SubPool{legacyPool}
