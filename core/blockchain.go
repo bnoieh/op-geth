@@ -1713,11 +1713,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	// Peek the error for the first block to decide the directing import logic
 	it := newInsertIterator(chain, results, bc.validator)
 
-	block := chain[0]
-	var err error
 	traceStart := time.Now()
-	if !minerMode {
-		// TODO
+	var block *types.Block
+	var err error
+	if minerMode {
+		block = chain[0]
+	} else {
 		block, err = it.next()
 	}
 	log.Info("perf-trace InsertChain it.next", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
@@ -1876,6 +1877,15 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			continue
 		}
 
+		// Async verify header if minerMode
+		asyncItNextCh := make(chan error)
+		if minerMode {
+			go func() {
+				_, err := it.next()
+				asyncItNextCh <- err
+			}()
+		}
+
 		var (
 			receipts, receiptExist = bc.miningReceiptsCache.Get(block.Hash())
 			logs, logExist         = bc.miningTxLogsCache.Get(block.Hash())
@@ -1936,8 +1946,19 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		ptime := time.Since(pstart)
 
 		vstart := time.Now()
-		if !minerMode {
-			if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
+		// Async validate if minerMode
+		asyncValidateStateCh := make(chan error)
+		if minerMode {
+			header := block.Header()
+			// Can not validate root concurrently
+			if root := statedb.IntermediateRoot(bc.chainConfig.IsEIP158(header.Number)); header.Root != root {
+				panic(fmt.Errorf("self mined block(hash: %x number %v) verify root err(mined: %x expected: %x) dberr: %w", block.Hash(), block.NumberU64(), header.Root, root, statedb.Error()))
+			}
+			go func() {
+				asyncValidateStateCh <- bc.validator.ValidateState(block, statedb, receipts, usedGas, true)
+			}()
+		} else {
+			if err := bc.validator.ValidateState(block, statedb, receipts, usedGas, false); err != nil {
 				bc.reportBlock(block, receipts, err)
 				followupInterrupt.Store(true)
 				return it.index, err
@@ -1980,6 +2001,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		if err != nil {
 			return it.index, err
+		}
+		if minerMode {
+			if err := <-asyncItNextCh; err != nil {
+				panic(fmt.Errorf("self mined block(hash: %x number %v) async verify header err: %w", block.Hash(), block.NumberU64(), err))
+			}
+			if err := <-asyncValidateStateCh; err != nil {
+				panic(fmt.Errorf("self mined block(hash: %x number %v) async verify state err: %w", block.Hash(), block.NumberU64(), err))
+			}
 		}
 		bc.CacheBlock(block.Hash(), block)
 		log.Info("perf-trace insertChain debug2", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
