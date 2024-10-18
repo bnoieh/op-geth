@@ -35,7 +35,7 @@ type PayloadVersion byte
 const (
 	GetPayloadStage  = "getPayload"
 	NewPayloadStage  = "newPayload"
-	ForkchoiceUpdate = "forkchoiceUpdate"
+	ForkchoiceUpdatedStage = "forkchoiceUpdated"
 )
 
 var (
@@ -190,7 +190,7 @@ type ForkchoiceStateV1 struct {
 }
 
 type OpSealPayloadResponse struct {
-	Stage         string                    `json:"stage"`
+	ErrStage      string                    `json:"errStage"`
 	PayloadStatus PayloadStatusV1           `json:"payloadStatus"`
 	Payload       *ExecutionPayloadEnvelope `json:"payload"`
 }
