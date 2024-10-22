@@ -910,11 +910,13 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 	nonceTooLowTxCount := 0
 	commitTxTimer := time.Duration(0)
 	shiftTxTimer := time.Duration(0)
+	invalidTxTimer := time.Duration(0)
 	defer func() {
-		log.Info("perf-trace commitTransactions", "duration", time.Since(start), "number", env.header.Number.Uint64(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "validateTx", env.tcount, "nonceTooLowTx", nonceTooLowTxCount)
+		log.Info("perf-trace commitTransactions", "duration", time.Since(start), "number", env.header.Number.Uint64(), "commitTx", commitTxTimer, "shiftTx", shiftTxTimer, "validateTx", env.tcount, "nonceTooLowTx", nonceTooLowTxCount, "nonceTooLowDuration", invalidTxTimer)
 	}()
 
 	for {
+		start0 := time.Now()
 		// Check interruption signal and abort building if it's fired.
 		if interrupt != nil {
 			if signal := interrupt.Load(); signal != commitInterruptNone {
@@ -1006,6 +1008,7 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 			shiftTxTimer += time.Since(start)
 			txErrNoncetoolowMeter.Mark(1)
 			nonceTooLowTxCount++
+			invalidTxTimer += time.Since(start0)
 
 		case errors.Is(err, nil):
 			// Everything ok, collect the logs and shift in the next transaction from the same account
@@ -1019,7 +1022,7 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 		default:
 			// Transaction is regarded as invalid, drop all consecutive transactions from
 			// the same sender because of `nonce-too-high` clause.
-			log.Debug("Transaction failed, account skipped", "hash", ltx.Hash, "err", err)
+			log.Error("perf-trace Transaction failed, account skipped", "hash", ltx.Hash, "err", err)
 			txs.Pop()
 			txErrUnknownMeter.Mark(1)
 		}

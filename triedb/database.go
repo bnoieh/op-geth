@@ -19,6 +19,7 @@ package triedb
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -182,9 +183,11 @@ func (db *Database) Reader(blockRoot common.Hash) (database.Reader, error) {
 // The passed in maps(nodes, states) will be retained to avoid copying everything.
 // Therefore, these maps must not be changed afterwards.
 func (db *Database) Update(root common.Hash, parent common.Hash, block uint64, nodes *trienode.MergedNodeSet, states *triestate.Set) error {
+	start := time.Now()
 	if db.preimages != nil {
 		db.preimages.commit(false)
 	}
+	log.Info("perf-trace commit imageCommit", "duration", time.Since(start), "block", block)
 	return db.backend.Update(root, parent, block, nodes, states)
 }
 
