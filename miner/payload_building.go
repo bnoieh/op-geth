@@ -282,13 +282,51 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			txs:         args.Transactions,
 			gasLimit:    args.GasLimit,
 		}
+		var emptyParamsBeaconRoot common.Hash
+		if emptyParams.beaconRoot != nil {
+			log.Info("emptyParams.beaconRoot not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			emptyParamsBeaconRoot = *emptyParams.beaconRoot
+		}
+		var emptyParamsGasLimit uint64
+		if emptyParams.gasLimit != nil {
+			log.Info("emptyParamsGasLimit not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			emptyParamsGasLimit = *emptyParams.gasLimit
+		}
+		log.Info("to build empty payload", "timestamp", emptyParams.timestamp, "parentHash", emptyParams.parentHash, "coinbase", emptyParams.coinbase, "random", emptyParams.random, "withdrawals", emptyParams.withdrawals, "beaconRoot", emptyParamsBeaconRoot, "txs", emptyParams.txs, "gasLimit", emptyParamsGasLimit, "id", args.Id())
 		start := time.Now()
 		empty := w.getSealingBlock(emptyParams)
 		if empty.err != nil {
 			log.Error("Built empty payload error", "id", args.Id(), "error", empty.err)
 			return nil, empty.err
 		}
-		log.Info("Built empty payload succeed", "id", args.Id(), "number", empty.block.NumberU64(), "hash", empty.block.Hash(), "elapsed", common.PrettyDuration(time.Since(start)))
+		head := empty.block.Header()
+		var headBaseFee uint64
+		var headWithdrawalsHash common.Hash
+		var headParentBeaconRoot common.Hash
+		var headBlobGasUsed uint64
+		var headExcessBlobGas uint64
+		if head.BaseFee != nil {
+			log.Info("headBaseFee not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			headBaseFee = head.BaseFee.Uint64()
+		}
+		if head.WithdrawalsHash != nil {
+			log.Info("headWithdrawalsHash not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			headWithdrawalsHash = *head.WithdrawalsHash
+		}
+		if head.ParentBeaconRoot != nil {
+			log.Info("headParentBeaconRoot not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			headParentBeaconRoot = *head.ParentBeaconRoot
+		}
+		if head.BlobGasUsed != nil {
+			log.Info("headBlobGasUsed not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			headBlobGasUsed = *head.BlobGasUsed
+		}
+		if head.ExcessBlobGas != nil {
+			log.Info("headExcessBlobGas not nil", "id", args.Id(), "parentHash", emptyParams.parentHash)
+			headExcessBlobGas = *head.ExcessBlobGas
+		}
+
+		log.Info("Built empty payload succeed", "id", args.Id(), "number", empty.block.NumberU64(), "hash", empty.block.Hash(), "elapsed", common.PrettyDuration(time.Since(start)), "parentHash", head.ParentHash, "uncleHash", head.UncleHash, "coinbase", head.Coinbase, "root", head.Root, "txHash", head.TxHash, "receiptHash", head.ReceiptHash, "difficulty", head.Difficulty.Uint64(), "gasLimit", head.GasLimit, "gasUsed", head.GasUsed, "time", head.Time, "extra", head.Extra, "mixDigest", head.MixDigest, "nonce", head.Nonce, "basefee", headBaseFee, "withdrawHash", headWithdrawalsHash, "blobGas", headBlobGasUsed, "excessBlob", headExcessBlobGas, "parentBeacon", headParentBeaconRoot)
 
 		payload := newPayload(empty.block, args.Id())
 		// make sure to make it appear as full, otherwise it will wait indefinitely for payload building to complete.

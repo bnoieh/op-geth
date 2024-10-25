@@ -221,6 +221,8 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 
 	backend, eth := utils.RegisterEthService(stack, &cfg.Eth)
 
+	log.Info("start with genesis", "chain", cfg.Eth.Genesis.Config.Description())
+	log.Info("start with genesis", "config", *cfg.Eth.Genesis)
 	// Create gauge with geth system and build information
 	if eth != nil { // The 'eth' backend may be nil in light mode
 		var protos []string
