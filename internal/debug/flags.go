@@ -314,8 +314,6 @@ func StartPProf(address string, withMetrics bool) {
 		exp.Exp(metrics.DefaultRegistry)
 	}
 	http.Handle("/memsize/", http.StripPrefix("/memsize", &Memsize))
-	runtime.SetBlockProfileRate(1)
-	runtime.SetMutexProfileFraction(1)
 	log.Info("Starting pprof server", "addr", fmt.Sprintf("http://%s/debug/pprof", address))
 	go func() {
 		if err := http.ListenAndServe(address, nil); err != nil {
