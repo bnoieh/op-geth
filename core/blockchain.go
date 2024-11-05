@@ -1677,6 +1677,7 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 // completes, then the historic state could be pruned again
 func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error) {
 	// If the chain is terminating, don't even bother starting up.
+	traceStart := time.Now()
 	if bc.insertStopped() {
 		return 0, nil
 	}
@@ -1689,9 +1690,11 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		_, stateExist := bc.miningStateCache.Get(block.Hash())
 		minerMode = receiptExist && logExist && stateExist
 	}
+	log.Info("perf-trace InsertChain trace0", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
 
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
 	SenderCacher.RecoverFromBlocks(types.MakeSigner(bc.chainConfig, chain[0].Number(), chain[0].Time()), chain)
+	log.Info("perf-trace InsertChain trace1", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
 
 	var (
 		stats     = insertStats{startTime: mclock.Now()}
@@ -1714,7 +1717,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	// Peek the error for the first block to decide the directing import logic
 	it := newInsertIterator(chain, results, bc.validator)
 
-	traceStart := time.Now()
 	var block *types.Block
 	var err error
 	if minerMode {
@@ -1879,6 +1881,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			continue
 		}
 
+		log.Info("perf-trace InsertChain trace2", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
+
 		var (
 			receipts, receiptExist = bc.miningReceiptsCache.Get(block.Hash())
 			logs, logExist         = bc.miningTxLogsCache.Get(block.Hash())
@@ -1993,7 +1997,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			status, err = bc.writeBlockAndSetHead(block, receipts, logs, statedb, false)
 		}
 		followupInterrupt.Store(true)
-		log.Info("perf-trace insertChain debug1", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
 
 		if err != nil {
 			return it.index, err
@@ -2011,7 +2014,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		storageCommitTimer.Update(statedb.StorageCommits)   // Storage commits are complete, we can mark them
 		snapshotCommitTimer.Update(statedb.SnapshotCommits) // Snapshot commits are complete, we can mark them
 		triedbCommitTimer.Update(statedb.TrieDBCommits)     // Trie database commits are complete, we can mark them
-		log.Info("perf-trace insertChain debug3", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
 
 		trieCommitTimer.Update(statedb.TrieCommits)
 		codeCommitTimer.Update(statedb.CodeCommits)
@@ -2029,9 +2031,14 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		if bc.snaps != nil {
 			snapDiffItems, snapBufItems = bc.snaps.Size()
 		}
+		log.Info("perf-trace insertChain debug4", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
+
 		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
+		log.Info("perf-trace insertChain debug5", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
+
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, setHead)
 		blockGasUsedGauge.Update(int64(block.GasUsed()) / 1000000)
+		log.Info("perf-trace insertChain debug6", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count
@@ -2481,12 +2488,16 @@ func (bc *BlockChain) reorg(oldHead *types.Header, newHead *types.Block) error {
 // updating. It relies on the additional SetCanonical call to finalize the entire
 // procedure.
 func (bc *BlockChain) InsertBlockWithoutSetHead(block *types.Block) error {
+	start := time.Now()
 	if !bc.chainmu.TryLock() {
 		return errChainStopped
 	}
 	defer bc.chainmu.Unlock()
+	log.Info("perf-trace InsertBlockWithoutSetHead chainmu", "duration", time.Since(start), "block", block.NumberU64())
 
+	start1 := time.Now()
 	_, err := bc.insertChain(types.Blocks{block}, false)
+	log.Info("perf-trace InsertBlockWithoutSetHead insertChain", "duration", time.Since(start1), "block", block.NumberU64())
 	return err
 }
 
