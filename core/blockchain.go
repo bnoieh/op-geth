@@ -1690,11 +1690,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		_, stateExist := bc.miningStateCache.Get(block.Hash())
 		minerMode = receiptExist && logExist && stateExist
 	}
-	log.Info("perf-trace InsertChain trace0", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
 
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
 	SenderCacher.RecoverFromBlocks(types.MakeSigner(bc.chainConfig, chain[0].Number(), chain[0].Time()), chain)
-	log.Info("perf-trace InsertChain trace1", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
 
 	var (
 		stats     = insertStats{startTime: mclock.Now()}
@@ -1881,8 +1879,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 			continue
 		}
 
-		log.Info("perf-trace InsertChain trace2", "duration", common.PrettyDuration(time.Since(traceStart)), "hash", chain[0].Header().Hash(), "number", chain[0].NumberU64())
-
 		var (
 			receipts, receiptExist = bc.miningReceiptsCache.Get(block.Hash())
 			logs, logExist         = bc.miningTxLogsCache.Get(block.Hash())
@@ -2031,14 +2027,17 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		if bc.snaps != nil {
 			snapDiffItems, snapBufItems = bc.snaps.Size()
 		}
-		log.Info("perf-trace insertChain debug4", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
 
-		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
+		var trieDiffNodes common.StorageSize = 0
+		var trieBufNodes common.StorageSize = 0
+		var trieImmutableBufNodes common.StorageSize = 0
+		if !minerMode {
+			trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ = bc.triedb.Size()
+		}
 		log.Info("perf-trace insertChain debug5", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
 
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, setHead)
 		blockGasUsedGauge.Update(int64(block.GasUsed()) / 1000000)
-		log.Info("perf-trace insertChain debug6", "duration", common.PrettyDuration(time.Since(wstart)), "hash", block.Hash())
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count
