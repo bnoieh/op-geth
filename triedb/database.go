@@ -19,6 +19,7 @@ package triedb
 import (
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -184,11 +185,19 @@ func (db *Database) Reader(blockRoot common.Hash) (database.Reader, error) {
 // Therefore, these maps must not be changed afterwards.
 func (db *Database) Update(root common.Hash, parent common.Hash, block uint64, nodes *trienode.MergedNodeSet, states *triestate.Set) error {
 	start := time.Now()
+	wg := sync.WaitGroup{}
 	if db.preimages != nil {
-		db.preimages.commit(false)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			db.preimages.commit(true)
+		}()
 	}
+	err := db.backend.Update(root, parent, block, nodes, states)
+	log.Info("perf-trace commit update", "duration", time.Since(start), "block", block)
+	wg.Wait()
 	log.Info("perf-trace commit imageCommit", "duration", time.Since(start), "block", block)
-	return db.backend.Update(root, parent, block, nodes, states)
+	return err
 }
 
 // Commit iterates over all the children of a particular node, writes them out
