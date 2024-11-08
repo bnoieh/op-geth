@@ -663,14 +663,14 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 	for addr, txs := range pool.pendingCache.dump() {
 		// remove nonce too low transactions
 		if len(staled) > 0 {
-			noncetoolow := 0
+			noncetoolow := -1
 			for i, tx := range txs {
 				if _, hit := staled[tx.Hash()]; !hit {
 					break
 				}
 				noncetoolow = i
 			}
-			txs = txs[noncetoolow:]
+			txs = txs[noncetoolow+1:]
 		}
 
 		// If the miner requests tip enforcement, cap the lists now
