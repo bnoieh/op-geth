@@ -44,6 +44,7 @@ var (
 var enqueueTx = make(chan func(), TxQueueSize)
 var parallelCounter int32 = 0
 var parallelCounterGuage = metrics.NewRegisteredGauge("p2p/enqueue/parallel", nil)
+var txPackSizeGuage = metrics.NewRegisteredGauge("p2p/enqueue/tx/pack/size", nil)
 
 func init() {
 	log.Info("P2P euqneue parallel thread number", "threadNum", TxQueueSize)
@@ -145,6 +146,9 @@ func asyncEnqueueTx(peer *eth.Peer, txs []*types.Transaction, fetcher *fetcher.T
 		return err
 	}
 	enqueueTx <- func() {
+		if metrics.EnabledExpensive {
+			txPackSizeGuage.Update(int64(len(txs)))
+		}
 		if err := fetcher.Enqueue(peer.ID(), txs, directed); err != nil {
 			peer.Log().Warn("Failed to enqueue transaction", "err", err)
 		}
