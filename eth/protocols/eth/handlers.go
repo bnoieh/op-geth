@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	txDecodeTimer = metrics.NewRegisteredTimer("p2p/tx/encode/time", nil)
+	txDecodeTimer = metrics.NewRegisteredTimer("p2p/tx/decode/time", nil)
 )
 
 func handleGetBlockHeaders(backend Backend, msg Decoder, peer *Peer) error {

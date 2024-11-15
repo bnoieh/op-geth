@@ -137,7 +137,8 @@ var (
 	reorgresetNoblockingTimer = metrics.NewRegisteredTimer("txpool/noblocking/reorgresettime", nil)
 
 	// latency of accessing state objects
-	accountReadsTimer = metrics.NewRegisteredTimer("txpool/account/readtime", nil)
+	accountSnapReadsTimer = metrics.NewRegisteredTimer("txpool/account/snap/readtime", nil)
+	accountTrieReadsTimer = metrics.NewRegisteredTimer("txpool/account/trie/readtime", nil)
 )
 
 // BlockChain defines the minimal set of methods needed to back a tx pool with
@@ -1486,8 +1487,9 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	pool.mu.Lock()
 	tl, t0 := time.Now(), time.Now()
 	if reset != nil {
-		if pool.currentState != nil {
-			accountReadsTimer.Update(pool.currentState.AccountReads)
+		if pool.currentState != nil && metrics.EnabledExpensive {
+			accountTrieReadsTimer.Update(pool.currentState.AccountReads)
+			accountSnapReadsTimer.Update(pool.currentState.SnapshotAccountReads)
 		}
 		// Reset from the old head to the new, rescheduling any reorged transactions
 		demoteAddrs = pool.reset(reset.oldHead, reset.newHead)
