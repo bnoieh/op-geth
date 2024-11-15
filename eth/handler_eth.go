@@ -145,15 +145,39 @@ func asyncEnqueueTx(peer *eth.Peer, txs []*types.Transaction, fetcher *fetcher.T
 	if working, err := fetcher.IsWorking(); !working {
 		return err
 	}
-	enqueueTx <- func() {
-		if metrics.EnabledExpensive {
-			txPackSizeGuage.Update(int64(len(txs)))
-		}
-		if err := fetcher.Enqueue(peer.ID(), txs, directed); err != nil {
-			peer.Log().Warn("Failed to enqueue transaction", "err", err)
+	//split the txs into multiple parts and enqueue them in parallel
+	if metrics.EnabledExpensive {
+		txPackSizeGuage.Update(int64(len(txs)))
+	}
+	for _, chunk := range splitTxs(txs, TxQueueSize) {
+		enqueueTx <- func() {
+			if err := fetcher.Enqueue(peer.ID(), chunk, directed); err != nil {
+				peer.Log().Warn("Failed to enqueue transaction", "err", err)
+			}
 		}
 	}
 	return nil
+}
+
+func splitTxs(txs []*types.Transaction, chunks int) [][]*types.Transaction {
+	var res [][]*types.Transaction
+	var num int = 0
+	if len(txs)%chunks == 0 {
+		num = len(txs) / chunks
+	} else {
+		num = (len(txs) / chunks) + 1
+	}
+	if num == 0 {
+		num = 1
+	}
+	for i := 0; i < len(txs); i += num {
+		end := i + num
+		if end > len(txs) {
+			end = len(txs)
+		}
+		res = append(res, txs[i:end])
+	}
+	return res
 }
 
 // handleBlockAnnounces is invoked from a peer's message handler when it transmits a
