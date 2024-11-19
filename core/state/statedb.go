@@ -1500,8 +1500,8 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 					// - head-(n-1) layer(bottom-most diff layer) is paired with HEAD-(n-1)state
 					go func() {
 						start := time.Now()
-						if err := s.snaps.Cap(s.expectedRoot, 128); err != nil {
-							log.Warn("Failed to cap snapshot tree", "root", s.expectedRoot, "layers", 128, "err", err)
+						if err := s.snaps.Cap(s.expectedRoot, 32); err != nil {
+							log.Warn("Failed to cap snapshot tree", "root", s.expectedRoot, "layers", 32, "err", err)
 						}
 						log.Info("perf-db-trace async commit Snapshot cap", "duration", time.Since(start), "block", block)
 					}()
