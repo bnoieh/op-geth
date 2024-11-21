@@ -75,43 +75,6 @@ func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 	}
 }
 
-func TestSplitTxs(t *testing.T) {
-	if res := splitTxs(nil, 10); len(res) != 0 {
-		t.Fatalf("expected empty result, got %v", res)
-	}
-	if res := splitTxs([]*types.Transaction{}, 10); len(res) != 0 {
-		t.Fatalf("expected empty result, got %v", res)
-	}
-	res := splitTxs([]*types.Transaction{{}, {}, {}}, 10)
-	if len(res) != 3 {
-		t.Fatalf("expected 3 results, got %v", res)
-	}
-	for _, r := range res {
-		if len(r) != 1 {
-			t.Fatalf("expected 1 tx, got %v", r)
-		}
-	}
-	res = splitTxs([]*types.Transaction{{}, {}, {}}, 3)
-	if len(res) != 3 {
-		t.Fatalf("expected 3 results, got %v", res)
-	}
-	for _, r := range res {
-		if len(r) != 1 {
-			t.Fatalf("expected 1 tx, got %v", r)
-		}
-	}
-	res = splitTxs([]*types.Transaction{{}, {}, {}}, 2)
-	if len(res) != 2 {
-		t.Fatalf("expected 2 results, got %v", res)
-	}
-	if len(res[0]) != 2 {
-		t.Fatalf("expected 2 txs, got %v", res[0])
-	}
-	if len(res[1]) != 1 {
-		t.Fatalf("expected 1 txs, got %v", res[0])
-	}
-}
-
 // Tests that peers are correctly accepted (or rejected) based on the advertised
 // fork IDs in the protocol handshake.
 func TestForkIDSplit68(t *testing.T) { testForkIDSplit(t, eth.ETH68) }
