@@ -150,10 +150,8 @@ func asyncEnqueueTx(peer *eth.Peer, txs []*types.Transaction, fetcher *fetcher.T
 		txPackSizeGuage.Update(int64(len(txs)))
 	}
 	for _, chunk := range splitTxs(txs, TxQueueSize) {
-		// to avoid the closure to capture the same variable
-		temp := chunk
 		enqueueTx <- func() {
-			if err := fetcher.Enqueue(peer.ID(), temp, directed); err != nil {
+			if err := fetcher.Enqueue(peer.ID(), chunk, directed); err != nil {
 				peer.Log().Warn("Failed to enqueue transaction", "err", err)
 			}
 		}
