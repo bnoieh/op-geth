@@ -127,7 +127,6 @@ var (
 	addWithLockTimer    = metrics.NewRegisteredTimer("txpool/locked/addtime", nil)
 	validateBasicTimer  = metrics.NewRegisteredTimer("txpool/validate/basic", nil)
 	requestPromoteTimer = metrics.NewRegisteredTimer("txpool/request/promote", nil)
-	validateKnownTimer  = metrics.NewRegisteredTimer("txpool/validate/known", nil)
 
 	// reorg detail metrics
 	resetTimer                = metrics.NewRegisteredTimer("txpool/resettime", nil)
@@ -1167,13 +1166,12 @@ func (pool *LegacyPool) addRemoteSync(tx *types.Transaction) error {
 // to the add is finished. Only use this during tests for determinism!
 func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error {
 	start := time.Now()
-	var durationValidate, durationPromote, durationValidateKnown time.Duration
+	var durationValidate, durationPromote time.Duration
 	defer func() {
-		if len(txs) > 0 && metrics.EnabledExpensive {
+		if len(txs) > 0 {
 			addTimer.Update(time.Since(start) / time.Duration(len(txs)))
 			validateBasicTimer.Update(durationValidate / time.Duration(len(txs)))
 			requestPromoteTimer.Update(durationPromote / time.Duration(len(txs)))
-			validateKnownTimer.Update(durationValidateKnown / time.Duration(len(txs)))
 		}
 	}()
 	// Do not treat as local if local transactions have been disabled
@@ -1186,13 +1184,11 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 	)
 	for i, tx := range txs {
 		// If the transaction is known, pre-set the error slot
-		tg := time.Now()
 		if pool.all.Get(tx.Hash()) != nil {
 			errs[i] = txpool.ErrAlreadyKnown
 			knownTxMeter.Mark(1)
 			continue
 		}
-		durationValidateKnown += time.Since(tg)
 		// Exclude transactions with basic errors, e.g invalid signatures and
 		// insufficient intrinsic gas as soon as possible and cache senders
 		// in transactions before obtaining lock
