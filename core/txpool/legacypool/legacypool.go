@@ -253,6 +253,8 @@ func (config *Config) sanitize() Config {
 // current state) and future transactions. Transactions move between those
 // two states over time as they are received and processed.
 type LegacyPool struct {
+	metrics txpoolMetrics
+
 	config       Config
 	chainconfig  *params.ChainConfig
 	chain        BlockChain
@@ -422,8 +424,12 @@ func (pool *LegacyPool) loop() {
 
 		// Handle stats reporting ticks
 		case <-report.C:
+			tw := time.Now()
 			pool.mu.RLock()
+			t0 := time.Now()
+			pool.metrics.Mu.Report.markWait(time.Since(tw))
 			pending, queued := pool.stats()
+			pool.metrics.Mu.Report.markExec(time.Since(t0))
 			pool.mu.RUnlock()
 			stales := int(pool.priced.stales.Load())
 
@@ -434,7 +440,10 @@ func (pool *LegacyPool) loop() {
 
 		// Handle inactive account transaction eviction
 		case <-evict.C:
+			tw := time.Now()
 			pool.mu.Lock()
+			t0 := time.Now()
+			pool.metrics.Mu.Evict.markWait(time.Since(tw))
 			for addr := range pool.queue {
 				// Skip local transactions from the eviction mechanism
 				if pool.locals.contains(addr) {
@@ -449,22 +458,28 @@ func (pool *LegacyPool) loop() {
 					queuedEvictionMeter.Mark(int64(len(list)))
 				}
 			}
+			pool.metrics.Mu.Evict.markExec(time.Since(t0))
 			pool.mu.Unlock()
 
 		// Handle local transaction journal rotation
 		case <-journal.C:
 			if pool.journal != nil {
+				tw := time.Now()
 				pool.mu.Lock()
 				t0 := time.Now()
+				pool.metrics.Mu.Journal.markWait(time.Since(tw))
 				if err := pool.journal.rotate(pool.toJournal()); err != nil {
 					log.Warn("Failed to rotate local tx journal", "err", err)
 				}
 				journalMutexTimer.UpdateSince(t0)
+				pool.metrics.Mu.Journal.markExec(time.Since(t0))
 				pool.mu.Unlock()
 			}
 
 		case <-reannounce.C:
+			tw := time.Now()
 			pool.mu.RLock()
+			pool.metrics.Mu.Reannounce.markWait(time.Since(tw))
 			t0 := time.Now()
 			reannoTxs := func() []*types.Transaction {
 				txs := make([]*types.Transaction, 0)
@@ -487,6 +502,7 @@ func (pool *LegacyPool) loop() {
 				return txs
 			}()
 			reannMutexTimer.UpdateSince(t0)
+			pool.metrics.Mu.Reannounce.markExec(time.Since(t0))
 			pool.mu.RUnlock()
 			staledMeter.Mark(int64(len(reannoTxs)))
 			if len(reannoTxs) > 0 {
@@ -535,7 +551,10 @@ func (pool *LegacyPool) SubscribeReannoTxsEvent(ch chan<- core.ReannoTxsEvent) e
 // SetGasTip updates the minimum gas tip required by the transaction pool for a
 // new transaction, and drops all transactions below this threshold.
 func (pool *LegacyPool) SetGasTip(tip *big.Int) {
+	tw := time.Now()
 	pool.mu.Lock()
+	t0 := time.Now()
+	pool.metrics.Mu.SetGasTip.markWait(time.Since(tw))
 	defer pool.mu.Unlock()
 
 	var (
@@ -553,14 +572,18 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 		pool.priced.Removed(len(drop))
 	}
 	log.Info("Legacy pool tip threshold updated", "tip", newTip)
+	pool.metrics.Mu.Add.markExec(time.Since(t0))
 }
 
 // Nonce returns the next nonce of an account, with all transactions executable
 // by the pool already applied on top.
 func (pool *LegacyPool) Nonce(addr common.Address) uint64 {
+	tw := time.Now()
 	pool.mu.RLock()
+	pool.metrics.Mu.Nonce.markWait(time.Since(tw))
 	defer pool.mu.RUnlock()
 	defer func(t0 time.Time) {
+		pool.metrics.Mu.Nonce.markExec(time.Since(t0))
 		nonceMutexTimer.UpdateSince(t0)
 	}(time.Now())
 
@@ -570,10 +593,15 @@ func (pool *LegacyPool) Nonce(addr common.Address) uint64 {
 // Stats retrieves the current pool stats, namely the number of pending and the
 // number of queued (non-executable) transactions.
 func (pool *LegacyPool) Stats() (int, int) {
+	tw := time.Now()
 	pool.mu.RLock()
+	t0 := time.Now()
+	pool.metrics.Mu.Stats.markWait(time.Since(tw))
 	defer pool.mu.RUnlock()
 
-	return pool.stats()
+	pending, queue := pool.stats()
+	pool.metrics.Mu.Stats.markExec(time.Since(t0))
+	return pending, queue
 }
 
 // stats retrieves the current pool stats, namely the number of pending and the
@@ -593,7 +621,10 @@ func (pool *LegacyPool) stats() (int, int) {
 // Content retrieves the data content of the transaction pool, returning all the
 // pending as well as queued transactions, grouped by account and sorted by nonce.
 func (pool *LegacyPool) Content() (map[common.Address][]*types.Transaction, map[common.Address][]*types.Transaction) {
+	tw := time.Now()
 	pool.mu.Lock()
+	pool.metrics.Mu.Content.markWait(time.Since(tw))
+	t0 := time.Now()
 	defer pool.mu.Unlock()
 
 	pending := make(map[common.Address][]*types.Transaction, len(pool.pending))
@@ -604,13 +635,17 @@ func (pool *LegacyPool) Content() (map[common.Address][]*types.Transaction, map[
 	for addr, list := range pool.queue {
 		queued[addr] = list.Flatten()
 	}
+	pool.metrics.Mu.Content.markExec(time.Since(t0))
 	return pending, queued
 }
 
 // ContentFrom retrieves the data content of the transaction pool, returning the
 // pending as well as queued transactions of this address, grouped by nonce.
 func (pool *LegacyPool) ContentFrom(addr common.Address) ([]*types.Transaction, []*types.Transaction) {
+	tw := time.Now()
 	pool.mu.RLock()
+	pool.metrics.Mu.ContentFrom.markWait(time.Since(tw))
+	t0 := time.Now()
 	defer pool.mu.RUnlock()
 
 	var pending []*types.Transaction
@@ -621,6 +656,7 @@ func (pool *LegacyPool) ContentFrom(addr common.Address) ([]*types.Transaction, 
 	if list, ok := pool.queue[addr]; ok {
 		queued = list.Flatten()
 	}
+	pool.metrics.Mu.ContentFrom.markExec(time.Since(t0))
 	return pending, queued
 }
 
@@ -1168,6 +1204,8 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 	start := time.Now()
 	var durationValidate, durationPromote time.Duration
 	defer func() {
+		pool.metrics.KeyPoints.Add.markRun(time.Since(start))
+		pool.metrics.Tps.Add.mark(time.Since(start), len(txs))
 		if len(txs) > 0 {
 			addTimer.Update(time.Since(start) / time.Duration(len(txs)))
 			validateBasicTimer.Update(durationValidate / time.Duration(len(txs)))
@@ -1207,13 +1245,16 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 
 	// Process all the new transaction and merge any errors into the original slice
 	durationValidate = time.Since(start)
+	tm := time.Now()
 	pool.mu.Lock()
 	t0 := time.Now()
+	pool.metrics.Mu.Add.markWait(t0.Sub(tm))
 	newErrs, dirtyAddrs := pool.addTxsLocked(news, local)
 	if len(news) > 0 {
 		addWithLockTimer.Update(time.Since(t0) / time.Duration(len(news)))
 	}
 	pool.mu.Unlock()
+	pool.metrics.Mu.Add.markExec(time.Since(t0))
 	t0 = time.Now()
 
 	var nilSlot = 0
@@ -1258,8 +1299,14 @@ func (pool *LegacyPool) Status(hash common.Hash) txpool.TxStatus {
 	}
 	from, _ := types.Sender(pool.signer, tx) // already validated
 
+	tw := time.Now()
 	pool.mu.RLock()
+	pool.metrics.Mu.Status.markWait(time.Since(tw))
+	t0 := time.Now()
 	defer pool.mu.RUnlock()
+	defer func(t0 time.Time) {
+		pool.metrics.Mu.Status.markExec(time.Since(t0))
+	}(t0)
 
 	if txList := pool.pending[from]; txList != nil && txList.txs.items[tx.Nonce()] != nil {
 		return txpool.TxStatusPending
@@ -1467,12 +1514,11 @@ func (pool *LegacyPool) scheduleReorgLoop() {
 // runReorg runs reset and promoteExecutables on behalf of scheduleReorgLoop.
 func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirtyAccounts *accountSet, events map[common.Address]*sortedMap) {
 	defer func(t0 time.Time) {
+		pool.metrics.KeyPoints.RunReorg.markRun(time.Since(t0))
 		reorgDurationTimer.Update(time.Since(t0))
 		if reset != nil {
 			reorgresetTimer.UpdateSince(t0)
-			if reset.newHead != nil {
-				log.Info("Transaction pool reorged", "from", reset.oldHead.Number.Uint64(), "to", reset.newHead.Number.Uint64())
-			}
+			pool.metrics.report(reset.oldHead, reset.newHead)
 		}
 	}(time.Now())
 	defer close(done)
@@ -1484,8 +1530,10 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		// the flatten operation can be avoided.
 		promoteAddrs = dirtyAccounts.flatten()
 	}
+	tw := time.Now()
 	pool.mu.Lock()
 	tl, t0 := time.Now(), time.Now()
+	pool.metrics.Mu.RunReorg.markWait(tl.Sub(tw))
 	if reset != nil {
 		if pool.currentState != nil && metrics.EnabledExpensive {
 			accountTrieReadsTimer.Update(pool.currentState.AccountReads)
@@ -1510,15 +1558,18 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	}
 	// Check for pending transactions for every account that sent new ones
 	t0 = time.Now()
-	promoted := pool.promoteExecutables(promoteAddrs)
+	promoted, unpromoted := pool.promoteExecutables(promoteAddrs)
 	promoteTimer.UpdateSince(t0)
+	pool.metrics.Tps.Queue2pending.mark(time.Since(t0), len(promoted))
+	pool.metrics.Counters.unpromited.inc(int64(unpromoted))
 
 	// If a new block appeared, validate the pool of pending transactions. This will
 	// remove any transaction that has been included in the block or was invalidated
 	// because of another transaction (e.g. higher gas price).
 	t0 = time.Now()
 	if reset != nil {
-		pool.demoteUnexecutables(demoteAddrs)
+		demoted := pool.demoteUnexecutables(demoteAddrs)
+		pool.metrics.Tps.Pending2Nil.mark(time.Since(t0), demoted)
 		demoteTimer.UpdateSince(t0)
 		var pendingBaseFee = pool.priced.urgent.baseFee
 		if reset.newHead != nil {
@@ -1546,6 +1597,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	if reset != nil {
 		reorgresetNoblockingTimer.UpdateSince(tl)
 	}
+	pool.metrics.Mu.RunReorg.markExec(time.Since(tl))
 	pool.mu.Unlock()
 
 	// Notify subsystems for newly added transactions
@@ -1561,7 +1613,9 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		for _, set := range events {
 			txs = append(txs, set.Flatten()...)
 		}
+		t0 := time.Now()
 		pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
+		pool.metrics.Tps.Pending2P2P.mark(time.Since(t0), len(txs))
 	}
 }
 
@@ -1726,9 +1780,8 @@ func (pool *LegacyPool) reduceBalanceByL1Cost(list *list, balance *uint256.Int) 
 // promoteExecutables moves transactions that have become processable from the
 // future queue to the set of pending transactions. During this process, all
 // invalidated transactions (low nonce, low balance) are deleted.
-func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.Transaction {
+func (pool *LegacyPool) promoteExecutables(accounts []common.Address) (promoted []*types.Transaction, gapped int) {
 	// Track the promoted transactions to broadcast them at once
-	var promoted []*types.Transaction
 
 	// Iterate over all accounts and promote any executable transactions
 	gasLimit := txpool.EffectiveGasLimit(pool.chainconfig, pool.currentHead.Load().GasLimit, pool.config.EffectiveGasCeil)
@@ -1737,6 +1790,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		if list == nil {
 			continue // Just in case someone calls with a non existing account
 		}
+		total := list.Len()
 		// Drop all transactions that are deemed too old (low nonce)
 		forwards := list.Forward(pool.currentState.GetNonce(addr))
 		for _, tx := range forwards {
@@ -1781,6 +1835,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 		// Mark all the items dropped as removed
 		pool.priced.Removed(len(forwards) + len(drops) + len(caps))
 		queuedGauge.Dec(int64(len(forwards) + len(drops) + len(caps)))
+		gapped += total - len(readies) - len(forwards) - len(drops) - len(caps)
 		if pool.locals.contains(addr) {
 			localGauge.Dec(int64(len(forwards) + len(drops) + len(caps)))
 		}
@@ -1793,7 +1848,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 			}
 		}
 	}
-	return promoted
+	return promoted, 0
 }
 
 // truncatePending removes transactions from the pending queue if the pool is above the
@@ -1939,7 +1994,7 @@ func (pool *LegacyPool) truncateQueue() {
 // Note: transactions are not marked as removed in the priced list because re-heaping
 // is always explicitly triggered by SetBaseFee and it would be unnecessary and wasteful
 // to trigger a re-heap is this function
-func (pool *LegacyPool) demoteUnexecutables(demoteAddrs []common.Address) {
+func (pool *LegacyPool) demoteUnexecutables(demoteAddrs []common.Address) (demoted int) {
 	if demoteAddrs == nil {
 		demoteAddrs = make([]common.Address, 0, len(pool.pending))
 		for addr := range pool.pending {
@@ -2011,10 +2066,12 @@ func (pool *LegacyPool) demoteUnexecutables(demoteAddrs []common.Address) {
 				pool.reserve(addr, false)
 			}
 		}
+		demoted += len(dropPendingCache)
 		pool.pendingCache.del(dropPendingCache, pool.signer)
 		removed += len(dropPendingCache)
 	}
 	pool.priced.Removed(removed)
+	return
 }
 
 // addressByHeartbeat is an account address tagged with its last activity timestamp.
