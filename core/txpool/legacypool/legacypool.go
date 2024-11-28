@@ -572,7 +572,7 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 		pool.priced.Removed(len(drop))
 	}
 	log.Info("Legacy pool tip threshold updated", "tip", newTip)
-	pool.metrics.Mu.Add.markExec(time.Since(t0))
+	pool.metrics.Mu.SetGasTip.markExec(time.Since(t0))
 }
 
 // Nonce returns the next nonce of an account, with all transactions executable
@@ -1848,7 +1848,7 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) (promoted 
 			}
 		}
 	}
-	return promoted, 0
+	return promoted, gapped
 }
 
 // truncatePending removes transactions from the pending queue if the pool is above the

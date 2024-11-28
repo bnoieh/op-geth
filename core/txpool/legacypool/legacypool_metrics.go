@@ -9,7 +9,7 @@ import (
 )
 
 type txpoolMetrics struct {
-	lastReset int64
+	lastReset time.Time
 	Mu        struct {
 		Add         muMetric
 		RunReorg    muMetric
@@ -48,11 +48,12 @@ func (tm *txpoolMetrics) report(oldHead, newHead *types.Header) {
 		to = int64(newHead.Number.Uint64())
 	}
 	var duration time.Duration
-	if tm.lastReset == 0 {
+	if tm.lastReset.IsZero() {
 		duration = time.Second
 	} else {
-		duration = time.Since(time.Unix(atomic.LoadInt64(&tm.lastReset), 0))
+		duration = time.Since(tm.lastReset)
 	}
+	tm.lastReset = time.Now()
 	addExec, addWait := tm.Mu.Add.mu()
 	runReorgExec, runReorgWait := tm.Mu.RunReorg.mu()
 	journalExec, _ := tm.Mu.Journal.mu()
