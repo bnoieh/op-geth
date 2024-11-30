@@ -11,12 +11,13 @@ jobs:
     name: unit_test
     runs-on: ubuntu-22.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
+      - name: maximize build space
+        uses: easimon/maximize-build-space@fc881a613ad2a34aca9c9624518214ebc21dfc0c # ratchet:easimon/maximize-build-space@v10
         with:
-          root-reserve-mb: 512
-          swap-size-mb: 1024
-          remove-dotnet: 'true'
+          root-reserve-mb: 38912
+          swap-size-mb: 4096
+          remove-dotnet: "true"
+          remove-android: "true"
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
