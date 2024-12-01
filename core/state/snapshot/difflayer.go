@@ -51,7 +51,7 @@ var (
 	aggregatorItemLimit = aggregatorMemoryLimit / 42
 
 	// bloomItemLimit is an approximate number of all difflayer items (128 difflayers + 1 aggregatorlayer)
-	bloomItemLimit = (128*10000*2 + aggregatorItemLimit) / 2
+	bloomItemLimit = 25*10000*4 + aggregatorItemLimit
 
 	// bloomTargetError is the target false positive rate when the aggregator
 	// layer is at its fullest. The actual value will probably move around up
@@ -60,7 +60,7 @@ var (
 	// Note, dropping this down might drastically increase the size of the bloom
 	// filters that's stored in every diff layer. Don't do that without fully
 	// understanding all the implications.
-	bloomTargetError = 0.02
+	bloomTargetError = 0.01
 
 	// bloomSize is the ideal bloom filter size given the maximum number of items
 	// it's expected to hold and the target false positive error rate.
