@@ -122,6 +122,7 @@ var (
 	reannMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/reannounce/duration", nil)
 	nonceMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/nonce/duration", nil)
 	journalMutexTimer = metrics.NewRegisteredTimer("txpool/mutex/journal/duration", nil)
+	evictMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/evict/duration", nil)
 
 	// latency of add() method
 	addTimer            = metrics.NewRegisteredTimer("txpool/addtime", nil)
@@ -464,6 +465,7 @@ func (pool *LegacyPool) loop() {
 				}
 			}
 			pool.metrics.Mu.Evict.markExec(time.Since(t0))
+			evictMutexTimer.Update(time.Since(t0))
 			pool.mu.Unlock()
 
 		// Handle local transaction journal rotation
