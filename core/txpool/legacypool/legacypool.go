@@ -94,7 +94,8 @@ var (
 	// txpool reorgs.
 	throttleTxMeter = metrics.NewRegisteredMeter("txpool/throttle", nil)
 	// reorgDurationTimer measures how long time a txpool reorg takes.
-	reorgDurationTimer = metrics.NewRegisteredTimer("txpool/reorgtime", nil)
+	reorgDurationTimer           = metrics.NewRegisteredTimer("txpool/reorgtime", nil)
+	reorgNoBlockingDurationTimer = metrics.NewRegisteredTimer("txpool/reorg/noblocking/time", nil)
 	// dropBetweenReorgHistogram counts how many drops we experience between two reorg runs. It is expected
 	// that this number is pretty low, since txpool reorgs happen very frequently.
 	dropBetweenReorgHistogram = metrics.NewRegisteredHistogram("txpool/dropbetweenreorg", nil, metrics.NewExpDecaySample(1028, 0.015))
@@ -134,8 +135,10 @@ var (
 	reorgWaitLockTimer        = metrics.NewRegisteredTimer("txpool/reorg/waittime", nil)
 	promoteTimer              = metrics.NewRegisteredTimer("txpool/promotetime", nil)
 	demoteTimer               = metrics.NewRegisteredTimer("txpool/demotetime", nil)
+	reheapInDemoteTimer       = metrics.NewRegisteredTimer("txpool/reheap/in/demotetime", nil)
 	reorgresetTimer           = metrics.NewRegisteredTimer("txpool/reorgresettime", nil)
-	truncateTimer             = metrics.NewRegisteredTimer("txpool/truncatetime", nil)
+	truncatePendingTimer      = metrics.NewRegisteredTimer("txpool/truncate/queue/time", nil)
+	truncateQueueTimer        = metrics.NewRegisteredTimer("txpool/truncate/pending/time", nil)
 	reorgresetNoblockingTimer = metrics.NewRegisteredTimer("txpool/noblocking/reorgresettime", nil)
 
 	// latency of accessing state objects
@@ -1478,15 +1481,16 @@ func (pool *LegacyPool) scheduleReorgLoop() {
 
 // runReorg runs reset and promoteExecutables on behalf of scheduleReorgLoop.
 func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirtyAccounts *accountSet, events map[common.Address]*sortedMap) {
-	var demoteCost time.Duration
+	var reorgCost, reorgLockedCost, demoteCost time.Duration
 	defer func(t0 time.Time) {
-		reorgDurationTimer.Update(time.Since(t0))
+		reorgCost = time.Since(t0)
 		if reset != nil {
-			reorgresetTimer.UpdateSince(t0)
+			reorgresetTimer.Update(reorgCost)
 			demoteTimer.Update(demoteCost)
-			if reset.newHead != nil {
-				log.Info("Transaction pool reorged", "from", reset.oldHead.Number.Uint64(), "to", reset.newHead.Number.Uint64())
-			}
+			reorgresetNoblockingTimer.Update(reorgLockedCost)
+		} else {
+			reorgDurationTimer.Update(reorgCost)
+			reorgNoBlockingDurationTimer.Update(reorgLockedCost)
 		}
 	}(time.Now())
 	defer close(done)
@@ -1551,12 +1555,14 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	// Ensure pool.queue and pool.pending sizes stay within the configured limits.
 	t0 = time.Now()
 	pool.truncatePending()
+	truncatePendingTimer.UpdateSince(t0)
+	t0 = time.Now()
 	pool.truncateQueue()
-	truncateTimer.UpdateSince(t0)
+	truncateQueueTimer.UpdateSince(t0)
 
 	dropBetweenReorgHistogram.Update(int64(pool.changesSinceReorg))
 	pool.changesSinceReorg = 0 // Reset change counter
-	reorgresetNoblockingTimer.UpdateSince(tl)
+	reorgLockedCost = time.Since(tl)
 	pool.mu.Unlock()
 
 	// Notify subsystems for newly added transactions
@@ -2029,7 +2035,9 @@ func (pool *LegacyPool) demoteUnexecutables(demoteAddrs []common.Address) (demot
 		pool.pendingCache.del(dropPendingCache, pool.signer)
 		removed += len(dropPendingCache)
 	}
+	t0 := time.Now()
 	pool.priced.Removed(removed)
+	reheapInDemoteTimer.UpdateSince(t0)
 	return
 }
 
