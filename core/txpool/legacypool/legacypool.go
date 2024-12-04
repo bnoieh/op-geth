@@ -122,6 +122,7 @@ var (
 	reannMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/reannounce/duration", nil)
 	nonceMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/nonce/duration", nil)
 	journalMutexTimer = metrics.NewRegisteredTimer("txpool/mutex/journal/duration", nil)
+	evictMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/evict/duration", nil)
 
 	// latency of add() method
 	addTimer            = metrics.NewRegisteredTimer("txpool/addtime", nil)
@@ -448,6 +449,7 @@ func (pool *LegacyPool) loop() {
 		// Handle inactive account transaction eviction
 		case <-evict.C:
 			pool.mu.Lock()
+			t0 := time.Now()
 			for addr := range pool.queue {
 				// Skip local transactions from the eviction mechanism
 				if pool.locals.contains(addr) {
@@ -462,6 +464,7 @@ func (pool *LegacyPool) loop() {
 					queuedEvictionMeter.Mark(int64(len(list)))
 				}
 			}
+			evictMutexTimer.Update(time.Since(t0))
 			pool.mu.Unlock()
 
 		// Handle local transaction journal rotation
