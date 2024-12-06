@@ -2007,7 +2007,6 @@ func (pool *LegacyPool) demoteUnexecutables(demoteAddrs []common.Address) (demot
 			// Internal shuffle shouldn't touch the lookup set.
 			pool.enqueueTx(hash, tx, false, false)
 		}
-		demoted += len(olds)
 		dropPendingCache = append(dropPendingCache, olds...)
 		dropPendingCache = append(dropPendingCache, invalids...)
 		dropPendingCache = append(dropPendingCache, drops...)
@@ -2037,6 +2036,7 @@ func (pool *LegacyPool) demoteUnexecutables(demoteAddrs []common.Address) (demot
 		}
 		pool.pendingCache.del(dropPendingCache, pool.signer)
 		removed += len(dropPendingCache)
+		demoted += len(dropPendingCache)
 	}
 	t0 := time.Now()
 	pool.priced.Removed(removed)
