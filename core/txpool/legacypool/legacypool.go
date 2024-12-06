@@ -143,8 +143,8 @@ var (
 	accountTrieReadsTimer = metrics.NewRegisteredTimer("txpool/account/trie/readtime", nil)
 
 	feedTimer       = metrics.NewRegisteredTimer("txpool/feed/time", nil)
-	sendFeedTxGauge = metrics.NewRegisteredGauge("txpool/sendfeed/tx", nil)
-	demoteTxGauge   = metrics.NewRegisteredGauge("txpool/demote/tx/count", nil)
+	sendFeedTxCount = metrics.NewRegisteredCounter("txpool/sendfeed/tx", nil)
+	demoteTxCount   = metrics.NewRegisteredCounter("txpool/demote/tx/count", nil)
 
 	loopReportTimer = metrics.NewRegisteredTimer("txpool/loop/report", nil)
 )
@@ -1531,7 +1531,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	t0 = time.Now()
 	if reset != nil {
 		demoted := pool.demoteUnexecutables(demoteAddrs)
-		demoteTxGauge.Inc(int64(demoted))
+		demoteTxCount.Inc(int64(demoted))
 		var pendingBaseFee = pool.priced.urgent.baseFee
 		if reset.newHead != nil {
 			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
@@ -1574,7 +1574,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 			txs = append(txs, set.Flatten()...)
 		}
 		pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
-		sendFeedTxGauge.Inc(int64(len(txs)))
+		sendFeedTxCount.Inc(int64(len(txs)))
 	}
 	feedTimer.Update(time.Since(t0))
 }
