@@ -125,21 +125,25 @@ var (
 	evictMutexTimer   = metrics.NewRegisteredTimer("txpool/mutex/evict/duration", nil)
 
 	// latency of add() method
-	addTimer            = metrics.NewRegisteredTimer("txpool/addtime", nil)
-	addWithLockTimer    = metrics.NewRegisteredTimer("txpool/locked/addtime", nil)
-	addWaitLockTimer    = metrics.NewRegisteredTimer("txpool/locked/waittime", nil)
-	validateBasicTimer  = metrics.NewRegisteredTimer("txpool/validate/basic", nil)
-	requestPromoteTimer = metrics.NewRegisteredTimer("txpool/request/promote", nil)
+	addTimer              = metrics.NewRegisteredTimer("txpool/addtime", nil)
+	addWithLockTimer      = metrics.NewRegisteredTimer("txpool/locked/addtime", nil)
+	addWithLockInnerTimer = metrics.NewRegisteredTimer("txpool/locked/addtime/inner", nil)
+	addWaitLockTimer      = metrics.NewRegisteredTimer("txpool/locked/waittime", nil)
+	validateBasicTimer    = metrics.NewRegisteredTimer("txpool/validate/basic", nil)
+	requestPromoteTimer   = metrics.NewRegisteredTimer("txpool/request/promote", nil)
 
 	// reorg detail metrics
 	resetTimer                = metrics.NewRegisteredTimer("txpool/resettime", nil)
 	reorgWaitLockTimer        = metrics.NewRegisteredTimer("txpool/reorg/waittime", nil)
 	promoteTimer              = metrics.NewRegisteredTimer("txpool/promotetime", nil)
+	promoteResetTimer         = metrics.NewRegisteredTimer("txpool/promotetime/reset", nil)
 	demoteTimer               = metrics.NewRegisteredTimer("txpool/demotetime", nil)
 	reheapInDemoteTimer       = metrics.NewRegisteredTimer("txpool/reheap/in/demotetime", nil)
 	reorgresetTimer           = metrics.NewRegisteredTimer("txpool/reorgresettime", nil)
 	truncatePendingTimer      = metrics.NewRegisteredTimer("txpool/truncate/queue/time", nil)
+	truncatePendingInnerTimer = metrics.NewRegisteredTimer("txpool/truncate/queue/time/inner", nil)
 	truncateQueueTimer        = metrics.NewRegisteredTimer("txpool/truncate/pending/time", nil)
+	truncateQueueInnerTimer   = metrics.NewRegisteredTimer("txpool/truncate/pending/time/inner", nil)
 	reorgresetNoblockingTimer = metrics.NewRegisteredTimer("txpool/noblocking/reorgresettime", nil)
 
 	// latency of accessing state objects
@@ -149,6 +153,9 @@ var (
 	feedTimer       = metrics.NewRegisteredTimer("txpool/feed/time", nil)
 	sendFeedTxCount = metrics.NewRegisteredCounter("txpool/sendfeed/tx", nil)
 	demoteTxCount   = metrics.NewRegisteredCounter("txpool/demote/tx/count", nil)
+	promoteTxCount  = metrics.NewRegisteredCounter("txpool/promote/tx/count", nil)
+	reorgCount      = metrics.NewRegisteredCounter("txpool/reorg/count", nil)
+	reorgResetCount = metrics.NewRegisteredCounter("txpool/reorg/reset/count", nil)
 
 	loopReportTimer = metrics.NewRegisteredTimer("txpool/loop/report", nil)
 )
@@ -1217,23 +1224,21 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 		// Accumulate all unknown transactions for deeper processing
 		news = append(news, tx)
 	}
+	durationValidate = time.Since(start)
 	if len(news) == 0 {
 		return errs
 	}
 
 	// Process all the new transaction and merge any errors into the original slice
-	durationValidate = time.Since(start)
 	tm := time.Now()
 	pool.mu.Lock()
 	t0 := time.Now()
 	addWaitLockTimer.Update(time.Since(tm) / time.Duration(len(news)))
 	newErrs, dirtyAddrs := pool.addTxsLocked(news, local)
-	if len(news) > 0 {
-		addWithLockTimer.Update(time.Since(t0) / time.Duration(len(news)))
-	}
+	addWithLockTimer.Update(time.Since(t0) / time.Duration(len(news)))
 	pool.mu.Unlock()
-	t0 = time.Now()
 
+	t0 = time.Now()
 	var nilSlot = 0
 	for _, err := range newErrs {
 		for errs[nilSlot] != nil {
@@ -1257,7 +1262,9 @@ func (pool *LegacyPool) addTxsLocked(txs []*types.Transaction, local bool) ([]er
 	dirty := newAccountSet(pool.signer)
 	errs := make([]error, len(txs))
 	for i, tx := range txs {
+		start := time.Now()
 		replaced, err := pool.add(tx, local)
+		addWithLockInnerTimer.Update(time.Since(start))
 		errs[i] = err
 		if err == nil && !replaced {
 			dirty.addTx(tx)
@@ -1484,16 +1491,20 @@ func (pool *LegacyPool) scheduleReorgLoop() {
 
 // runReorg runs reset and promoteExecutables on behalf of scheduleReorgLoop.
 func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirtyAccounts *accountSet, events map[common.Address]*sortedMap) {
-	var reorgCost, reorgLockedCost, demoteCost time.Duration
+	var reorgCost, reorgLockedCost, demoteCost, promoteCost time.Duration
 	defer func(t0 time.Time) {
 		reorgCost = time.Since(t0)
 		if reset != nil {
+			reorgResetCount.Inc(1)
 			reorgresetTimer.Update(reorgCost)
 			demoteTimer.Update(demoteCost)
 			reorgresetNoblockingTimer.Update(reorgLockedCost)
+			promoteResetTimer.Update(promoteCost)
 		} else {
+			reorgCount.Inc(1)
 			reorgDurationTimer.Update(reorgCost)
 			reorgNoBlockingDurationTimer.Update(reorgLockedCost)
+			promoteTimer.Update(promoteCost)
 		}
 	}(time.Now())
 	defer close(done)
@@ -1530,7 +1541,8 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	// Check for pending transactions for every account that sent new ones
 	t0 = time.Now()
 	promoted := pool.promoteExecutables(promoteAddrs)
-	promoteTimer.UpdateSince(t0)
+	promoteCost = time.Since(t0)
+	promoteTxCount.Inc(int64(len(promoted)))
 
 	// If a new block appeared, validate the pool of pending transactions. This will
 	// remove any transaction that has been included in the block or was invalidated
@@ -1823,10 +1835,12 @@ func (pool *LegacyPool) promoteExecutables(accounts []common.Address) []*types.T
 // pending limit. The algorithm tries to reduce transaction counts by an approximately
 // equal number for all for accounts with many pending transactions.
 func (pool *LegacyPool) truncatePending() {
+	start := time.Now()
 	pending := uint64(0)
 	for _, list := range pool.pending {
 		pending += uint64(list.Len())
 	}
+	truncatePendingInnerTimer.UpdateSince(start)
 	if pending <= pool.config.GlobalSlots {
 		return
 	}
@@ -1912,10 +1926,12 @@ func (pool *LegacyPool) truncatePending() {
 
 // truncateQueue drops the oldest transactions in the queue if the pool is above the global queue limit.
 func (pool *LegacyPool) truncateQueue() {
+	start := time.Now()
 	queued := uint64(0)
 	for _, list := range pool.queue {
 		queued += uint64(list.Len())
 	}
+	truncateQueueInnerTimer.UpdateSince(start)
 	if queued <= pool.config.GlobalQueue {
 		return
 	}
