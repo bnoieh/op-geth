@@ -1942,25 +1942,25 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		vstart := time.Now()
 		// Async validate if minerMode
 		// asyncValidateStateCh := make(chan error, 1)
-		// if minerMode {
-		// 	header := block.Header()
-		// 	// Can not validate root concurrently
-		// 	if root := statedb.IntermediateRoot(bc.chainConfig.IsEIP158(header.Number)); header.Root != root {
-		// 		err := fmt.Errorf("self mined block(hash: %x number %v) verify root err(mined: %x expected: %x) dberr: %w", block.Hash(), block.NumberU64(), header.Root, root, statedb.Error())
-		// 		bc.reportBlock(block, receipts, err)
-		// 		followupInterrupt.Store(true)
-		// 		return it.index, err
-		// 	}
-		// 	go func() {
-		// 		asyncValidateStateCh <- bc.validator.ValidateState(block, statedb, receipts, usedGas, true)
-		// 	}()
-		// } else {
-		// 	if err := bc.validator.ValidateState(block, statedb, receipts, usedGas, false); err != nil {
-		// 		bc.reportBlock(block, receipts, err)
-		// 		followupInterrupt.Store(true)
-		// 		return it.index, err
-		// 	}
-		// }
+		if minerMode {
+			header := block.Header()
+			// Can not validate root concurrently
+			if root := statedb.IntermediateRoot(bc.chainConfig.IsEIP158(header.Number)); header.Root != root {
+				err := fmt.Errorf("self mined block(hash: %x number %v) verify root err(mined: %x expected: %x) dberr: %w", block.Hash(), block.NumberU64(), header.Root, root, statedb.Error())
+				bc.reportBlock(block, receipts, err)
+				followupInterrupt.Store(true)
+				return it.index, err
+			}
+			// go func() {
+			// 	asyncValidateStateCh <- bc.validator.ValidateState(block, statedb, receipts, usedGas, true)
+			// }()
+		} else {
+			if err := bc.validator.ValidateState(block, statedb, receipts, usedGas, false); err != nil {
+				bc.reportBlock(block, receipts, err)
+				followupInterrupt.Store(true)
+				return it.index, err
+			}
+		}
 
 		vtime := time.Since(vstart)
 		proctime := time.Since(start) // processing + validation
