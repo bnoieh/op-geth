@@ -386,7 +386,7 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 	}
 	pool.wg.Add(1)
 	go pool.loop()
-	//go pool.loopOfSync()
+	go pool.loopOfSync()
 	return nil
 }
 
