@@ -123,10 +123,8 @@ var (
 	journalMutexTimer = metrics.NewRegisteredTimer("txpool/mutex/journal/duration", nil)
 
 	// latency of add() method
-	addTimer            = metrics.NewRegisteredTimer("txpool/addtime", nil)
-	addWithLockTimer    = metrics.NewRegisteredTimer("txpool/locked/addtime", nil)
-	validateBasicTimer  = metrics.NewRegisteredTimer("txpool/validate/basic", nil)
-	requestPromoteTimer = metrics.NewRegisteredTimer("txpool/request/promote", nil)
+	addTimer         = metrics.NewRegisteredTimer("txpool/addtime", nil)
+	addWithLockTimer = metrics.NewRegisteredTimer("txpool/locked/addtime", nil)
 
 	// reorg detail metrics
 	resetTimer                = metrics.NewRegisteredTimer("txpool/resettime", nil)
@@ -1120,15 +1118,11 @@ func (pool *LegacyPool) addRemoteSync(tx *types.Transaction) error {
 // If sync is set, the method will block until all internal maintenance related
 // to the add is finished. Only use this during tests for determinism!
 func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error {
-	start := time.Now()
-	var durationValidate, durationPromote time.Duration
-	defer func() {
+	defer func(t0 time.Time) {
 		if len(txs) > 0 {
-			addTimer.Update(time.Since(start) / time.Duration(len(txs)))
-			validateBasicTimer.Update(durationValidate / time.Duration(len(txs)))
-			requestPromoteTimer.Update(durationPromote / time.Duration(len(txs)))
+			addTimer.Update(time.Since(t0) / time.Duration(len(txs)))
 		}
-	}()
+	}(time.Now())
 	// Do not treat as local if local transactions have been disabled
 	local = local && !pool.config.NoLocals
 
@@ -1161,7 +1155,6 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 	}
 
 	// Process all the new transaction and merge any errors into the original slice
-	durationValidate = time.Since(start)
 	pool.mu.Lock()
 	t0 := time.Now()
 	newErrs, dirtyAddrs := pool.addTxsLocked(news, local)
@@ -1169,7 +1162,6 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 		addWithLockTimer.Update(time.Since(t0) / time.Duration(len(news)))
 	}
 	pool.mu.Unlock()
-	t0 = time.Now()
 
 	var nilSlot = 0
 	for _, err := range newErrs {
@@ -1184,7 +1176,6 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 	if sync {
 		<-done
 	}
-	durationPromote = time.Since(t0)
 	return errs
 }
 
