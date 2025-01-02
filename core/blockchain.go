@@ -2503,10 +2503,16 @@ func (bc *BlockChain) InsertBlockWithoutSetHead(block *types.Block) error {
 // block. It's possible that the state of the new head is missing, and it will
 // be recovered in this function as well.
 func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
+	start0 := time.Now()
+	defer func() {
+		log.Info("perf-trace SetCanonical defer", "duration", common.PrettyDuration(time.Since(start0)), "number", head.NumberU64())
+	}()
 	if !bc.chainmu.TryLock() {
 		return common.Hash{}, errChainStopped
 	}
 	defer bc.chainmu.Unlock()
+
+	log.Info("perf-trace SetCanonical lock", "num", head.NumberU64(), "dur", time.Since(start0))
 
 	// Re-execute the reorged chain in case the head state is missing.
 	if !bc.HasState(head.Root()) {
@@ -2515,6 +2521,8 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 		}
 		log.Info("Recovered head state", "number", head.Number(), "hash", head.Hash())
 	}
+	log.Info("perf-trace SetCanonical root", "num", head.NumberU64(), "dur", time.Since(start0))
+
 	// Run the reorg if necessary and set the given block as new head.
 	start := time.Now()
 	if head.ParentHash() != bc.CurrentBlock().Hash() {
@@ -2549,6 +2557,7 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 		context = append(context, []interface{}{"age", common.PrettyAge(timestamp)}...)
 	}
 	log.Info("perf-trace txpool-trace Chain head was updated", context...)
+	log.Info("perf-trace SetCanonical before return", "num", head.NumberU64(), "dur", time.Since(start0))
 	return head.Hash(), nil
 }
 
